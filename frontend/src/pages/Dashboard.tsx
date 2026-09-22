@@ -9,26 +9,34 @@ export function Dashboard() {
   const [health, setHealth] = useState<HealthState>({ status: "loading" });
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
-    fetch("/api/health")
+    fetch("/api/health", { signal: controller.signal })
       .then(async (response) => {
+        if (!response.ok) {
+          // Evita tentar fazer JSON.parse de um corpo de erro que pode nem
+          // ser JSON (ex.: página HTML de um 502 de proxy/load balancer).
+          setHealth({
+            status: "error",
+            message: `Backend respondeu com erro (HTTP ${response.status}).`,
+          });
+          return;
+        }
+
         const body = (await response.json()) as { status: string; database: string };
-        if (cancelled) return;
-        if (!response.ok || body.status !== "ok") {
+        if (body.status !== "ok") {
           setHealth({ status: "error", message: "Backend respondeu, mas reportou um problema." });
           return;
         }
         setHealth({ status: "success", database: body.database });
       })
-      .catch(() => {
-        if (!cancelled) {
-          setHealth({ status: "error", message: "Não foi possível conectar ao backend em /api/health." });
-        }
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setHealth({ status: "error", message: "Não foi possível conectar ao backend em /api/health." });
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, []);
 
