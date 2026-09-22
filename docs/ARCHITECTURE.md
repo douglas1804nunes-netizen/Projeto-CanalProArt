@@ -62,6 +62,32 @@ dependências de todos os pacotes.
   `generated_titles`, `generated_descriptions`, `published_videos`,
   `audit_logs`) entra na **Fase 2**.
 
+## Deploy
+
+- **Estratégia escolhida: mesma origem (opção a — backend serve o build do
+  frontend).** Em produção, o Fastify registra `@fastify/static` apontando
+  para `frontend/dist` e um fallback SPA (`setNotFoundHandler`) que devolve
+  `index.html` para qualquer rota `GET` fora de `/api/*` — necessário para o
+  React Router funcionar em refresh/deep-link (ex.: `/trends`). Existe uma
+  única URL pública (um Web Service no Render), então não há CORS entre
+  front e back em produção nem necessidade de uma segunda variável tipo
+  `VITE_API_URL` duplicando `BACKEND_URL`/`FRONTEND_URL` (já validados em
+  `env.ts`).
+- Em desenvolvimento local nada muda: o Vite continua rodando separado
+  (`http://localhost:5173`) e fazendo proxy de `/api/*` para o backend
+  (`http://localhost:3000` — ver `frontend/vite.config.ts`). O registro do
+  `@fastify/static`/fallback só acontece quando `NODE_ENV=production`
+  (`backend/src/app.ts`), então dev e testes (`NODE_ENV=test`) não dependem
+  de um `frontend/dist` existir.
+- `backend/Dockerfile` builda os três workspaces necessários para o runtime
+  (`services`, `backend`, `frontend`) e copia `frontend/dist` para a imagem
+  final.
+- Por que não a opção (b) (Render Static Site + `VITE_API_URL` + rewrite):
+  para o estágio atual (MVP, um único serviço) ela só adiciona uma segunda
+  origem (CORS) e uma variável de ambiente redundante, sem benefício real —
+  fica registrada aqui como alternativa caso o projeto precise, no futuro,
+  hospedar o frontend num CDN separado do backend.
+
 ## Roadmap por fases
 
 | Fase | Escopo |
