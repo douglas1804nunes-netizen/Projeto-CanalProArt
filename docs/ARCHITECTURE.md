@@ -62,6 +62,28 @@ dependências de todos os pacotes.
   `generated_titles`, `generated_descriptions`, `published_videos`,
   `audit_logs`) entra na **Fase 2**.
 
+### Diretrizes para o schema da Fase 2
+
+Registradas aqui com antecedência para não virarem migrations retroativas
+depois — nada disto é implementado na Fase 1:
+
+- **Enums do Prisma** para campos de domínio fechado em vez de `String` solto
+  — ex.: `enum RightsStatus { ORIGINAL AUTHORIZED LICENSED PUBLIC_DOMAIN }`
+  no lugar do status de direitos citado em `docs/YOUTUBE.md`.
+- **`createdAt`/`updatedAt`** em todas as tabelas (`@default(now())` /
+  `@updatedAt`).
+- **`fetchedAt`** nas tabelas que guardam dados vindos da YouTube Data API
+  (`videos`, `video_metrics`, `trends`, ...) — ver "Retenção e atualização de
+  dados" em `docs/YOUTUBE.md`.
+- **Índices** em toda foreign key e em colunas usadas para filtro/ordenação
+  (ex.: `trend_score`, `fetchedAt`, `userId`).
+- **IDs** como `cuid()`/`uuid()` (`@id @default(cuid())`), nunca inteiros
+  auto-incrementais expostos em rotas públicas.
+- **Tokens OAuth do YouTube sempre criptografados** (AES-256-GCM) com
+  `TOKEN_ENCRYPTION_KEY` — que precisa ser uma chave **distinta** de
+  `JWT_SECRET` (nunca reaproveitar o mesmo segredo para as duas coisas; já
+  reforçado em `docs/ENVIRONMENT.md`).
+
 ## Deploy
 
 - **Estratégia escolhida: mesma origem (opção a — backend serve o build do

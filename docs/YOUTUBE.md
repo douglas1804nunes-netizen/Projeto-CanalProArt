@@ -58,16 +58,48 @@ Google Cloud Console:
 
 - A YouTube Data API v3 tem uma cota padrão de **10.000 unidades/dia** por
   projeto. Operações têm custos diferentes (ex.: `search.list` custa 100
-  unidades; `videos.list` custa 1; `videos.insert`/upload custa 1.600).
+  unidades — dá só ~100 buscas/dia na cota padrão —, `videos.list` custa 1
+  unidade, `videos.insert`/upload custa 1.600).
+- **Priorizar `videos.list` sobre `search.list`**: para descobrir vídeos em
+  alta, `videos.list` com `chart=mostPopular` e `regionCode` custa 1 unidade
+  (vs. 100 de um `search.list` equivalente) e cobre boa parte do caso de uso
+  de "tendências". `search.list` fica reservado para o que `videos.list` não
+  cobre (ex.: busca por palavra-chave livre).
+- Resultados devem ser **cacheados no banco** (ver `fetchedAt` na seção 6) em
+  vez de buscados de novo a cada requisição do frontend — evita gastar cota
+  repetindo a mesma consulta.
 - O `QuotaManager` do backend (Fase 19 do roadmap — ver docs/ARCHITECTURE.md)
-  registra o custo estimado
-  de cada chamada e bloqueia novas consultas ao atingir o limite configurado —
-  isso é para o app se proteger de ficar sem cota, **não** um mecanismo para
-  contornar a cota do Google.
+  registra o custo estimado de cada chamada e bloqueia novas consultas ao
+  atingir o limite configurado — isso é para o app se proteger de ficar sem
+  cota, **não** um mecanismo para contornar a cota do Google.
 - Se precisar de mais cota em produção, solicite aumento pelo próprio Console
   (**APIs & Services → YouTube Data API v3 → Quotas**).
 
-## 6. O que este projeto nunca faz
+## 6. Retenção e atualização de dados
+
+As políticas da YouTube Data API não permitem manter dados obtidos pela API
+armazenados indefinidamente sem atualização. Isso já é um requisito de
+**schema** a partir da Fase 2 (não algo para resolver só quando a automação
+de manutenção existir):
+
+- Toda tabela que guarda dados vindos da API (`videos`, `video_metrics`,
+  `trends`, ...) precisa de um campo `fetchedAt` marcando quando aquele dado
+  foi obtido/atualizado pela última vez.
+- Rotina de atualização/expurgo: registros com `fetchedAt` mais velho que
+  **~30 dias** devem ser re-buscados (se ainda relevantes para o usuário) ou
+  removidos. O job de manutenção em si (BullMQ) só entra na Fase 21+, mas o
+  campo `fetchedAt` precisa existir desde a Fase 2 para não exigir uma
+  migration retroativa depois.
+
+## 7. Upload — declaração de conteúdo sintético (Fase 16)
+
+Ao publicar um vídeo pela API (`videos.insert`), sempre que o conteúdo
+enviado tiver sido gerado ou alterado de forma realista por IA, a chamada
+precisa incluir `status.containsSyntheticMedia: true` — é a declaração oficial
+do YouTube para conteúdo sintético/alterado, exigida pelas políticas da
+plataforma independente do status de direitos (ORIGINAL/AUTHORIZED/etc.).
+
+## 8. O que este projeto nunca faz
 
 - Não baixa vídeos de terceiros.
 - Não contorna DRM, autenticação ou restrições de conteúdo.
