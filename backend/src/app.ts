@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
 import { env, rootDir } from "./env.js";
+import { prisma } from "./prisma.js";
 import { healthRoutes } from "./routes/health.js";
 
 export function buildApp() {
@@ -12,6 +13,10 @@ export function buildApp() {
 
   app.register(cors, {
     origin: env.FRONTEND_URL,
+  });
+
+  app.addHook("onClose", async () => {
+    await prisma.$disconnect();
   });
 
   app.register(healthRoutes);
