@@ -90,28 +90,28 @@ dependências de todos os pacotes.
 
 ## Roadmap por fases
 
-| Fase | Escopo |
-|------|--------|
-| 1 | **Arquitetura** (monorepo, Docker, env, health check) ✅ |
-| 2 | PostgreSQL + Prisma (schema completo) |
-| 3 | Autenticação (cadastro/login/JWT) |
-| 4 | YouTube OAuth (connect/callback/refresh/disconnect) |
-| 5 | YouTube Data API (`YouTubeService`) |
-| 6 | Pesquisa de tendências (`/trends`) |
-| 7 | Métricas (velocidade/engajamento/recência/volume) |
-| 8 | Trend Score (cálculo server-side) + classificação |
-| 9 | Dashboard (cards, gráfico, top oportunidades) |
-| 10 | Página de análise de tendência |
-| 11 | IA (`AIProvider`: ideias/roteiro/títulos/descrição) |
-| 12 | Content Projects |
-| 13 | Upload de mídia (vídeo próprio/autorizado) |
-| 14 | Validação de direitos |
-| 15 | Preview |
-| 16 | Upload para o YouTube |
-| 17 | Histórico de publicações |
-| 18 | Testes |
-| 19 | Segurança (CORS, rate limit, auditoria, quota manager) |
-| 20 | Deploy no Render |
-| 21+ | Redis, BullMQ, FFmpeg, automação, escala (só após o MVP validado) |
+| Fase | Escopo                                                            |
+| ---- | ----------------------------------------------------------------- |
+| 1    | **Arquitetura** (monorepo, Docker, env, health check) ✅          |
+| 2    | PostgreSQL + Prisma (schema completo)                             |
+| 3    | Autenticação (cadastro/login/JWT)                                 |
+| 4    | YouTube OAuth (connect/callback/refresh/disconnect)               |
+| 5    | YouTube Data API (`YouTubeService`)                               |
+| 6    | Pesquisa de tendências (`/trends`)                                |
+| 7    | Métricas (velocidade/engajamento/recência/volume)                 |
+| 8    | Trend Score (cálculo server-side) + classificação                 |
+| 9    | Dashboard (cards, gráfico, top oportunidades)                     |
+| 10   | Página de análise de tendência                                    |
+| 11   | IA (`AIProvider`: ideias/roteiro/títulos/descrição)               |
+| 12   | Content Projects                                                  |
+| 13   | Upload de mídia (vídeo próprio/autorizado)                        |
+| 14   | Validação de direitos                                             |
+| 15   | Preview                                                           |
+| 16   | Upload para o YouTube                                             |
+| 17   | Histórico de publicações                                          |
+| 18   | Testes                                                            |
+| 19   | Segurança (CORS, rate limit, auditoria, quota manager)            |
+| 20   | Deploy no Render                                                  |
+| 21+  | Redis, BullMQ, FFmpeg, automação, escala (só após o MVP validado) |
 
 Cada fase é implementada, testada e validada antes de avançar para a próxima.

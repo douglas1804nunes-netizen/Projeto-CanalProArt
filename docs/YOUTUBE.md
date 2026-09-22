@@ -20,7 +20,7 @@ Google Cloud Console:
 1. **APIs & Services → Credentials → Create Credentials → API key**.
 2. Copie a key gerada → cole em `YOUTUBE_API_KEY` no `.env`.
 3. Clique em **Restrict key** e restrinja:
-   - **API restrictions:** apenas *YouTube Data API v3*.
+   - **API restrictions:** apenas _YouTube Data API v3_.
    - **Application restrictions:** em produção, restrinja por IP (servidor do
      Render); em desenvolvimento local pode deixar sem restrição de aplicação.
 
@@ -39,7 +39,7 @@ Google Cloud Console:
    limite de 100 usuários de teste — suficiente para o MVP).
 6. Publicar para produção (**Publishing status: In production**) só é
    necessário se o app for usado por usuários fora da lista de teste. Como
-   `youtube.upload` é um *scope restrito*, publicar em produção exige uma
+   `youtube.upload` é um _scope restrito_, publicar em produção exige uma
    **verificação do Google** (revisão de segurança, pode levar dias/semanas).
    **Não é necessário para uso pessoal/MVP em modo Testing.**
 

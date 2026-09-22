@@ -32,7 +32,10 @@ export function Dashboard() {
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        setHealth({ status: "error", message: "Não foi possível conectar ao backend em /api/health." });
+        setHealth({
+          status: "error",
+          message: "Não foi possível conectar ao backend em /api/health.",
+        });
       });
 
     return () => {
@@ -44,8 +47,8 @@ export function Dashboard() {
     <div className="max-w-2xl">
       <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Fase 1 — Arquitetura. Os cards de métricas (vídeos analisados, tendências,
-        oportunidades, conteúdos, publicações) chegam nas próximas fases.
+        Fase 1 — Arquitetura. Os cards de métricas (vídeos analisados, tendências, oportunidades,
+        conteúdos, publicações) chegam nas próximas fases.
       </p>
 
       <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

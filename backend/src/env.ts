@@ -34,7 +34,10 @@ const envSchema = z
     DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatório"),
     FRONTEND_URL: z.preprocess(
       emptyToUndefined,
-      z.string().url("FRONTEND_URL deve ser uma URL válida (ex.: http://localhost:5173)").optional(),
+      z
+        .string()
+        .url("FRONTEND_URL deve ser uma URL válida (ex.: http://localhost:5173)")
+        .optional(),
     ),
     BACKEND_URL: z.preprocess(
       emptyToUndefined,
@@ -72,7 +75,9 @@ const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error("Variáveis de ambiente inválidas:", parsed.error.flatten().fieldErrors);
-  throw new Error("Configuração de ambiente inválida. Verifique o arquivo .env (veja .env.example).");
+  throw new Error(
+    "Configuração de ambiente inválida. Verifique o arquivo .env (veja .env.example).",
+  );
 }
 
 export const env = parsed.data;
