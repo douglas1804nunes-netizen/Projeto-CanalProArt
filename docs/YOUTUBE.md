@@ -59,7 +59,8 @@ Google Cloud Console:
 - A YouTube Data API v3 tem uma cota padrão de **10.000 unidades/dia** por
   projeto. Operações têm custos diferentes (ex.: `search.list` custa 100
   unidades; `videos.list` custa 1; `videos.insert`/upload custa 1.600).
-- O `QuotaManager` do backend (Fase 30 do roadmap) registra o custo estimado
+- O `QuotaManager` do backend (Fase 19 do roadmap — ver docs/ARCHITECTURE.md)
+  registra o custo estimado
   de cada chamada e bloqueia novas consultas ao atingir o limite configurado —
   isso é para o app se proteger de ficar sem cota, **não** um mecanismo para
   contornar a cota do Google.

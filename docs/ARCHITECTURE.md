@@ -25,8 +25,8 @@ dependências de todos os pacotes.
   nem criar uma dependência circular `backend → workers`.
 - `prisma/` fica na raiz (não dentro de `backend/`) porque o schema é uma fonte
   única de verdade que poderá ser consumida por `backend/` e futuramente por
-  `workers/` sem duplicar o client. O backend aponta para ele explicitamente
-  (`--schema=../prisma/schema.prisma` nos scripts `prisma:*` da raiz).
+  `workers/` sem duplicar o client. Os scripts `prisma:*` da raiz apontam para
+  ele explicitamente (`--schema=prisma/schema.prisma`).
 
 ## Backend
 
@@ -56,7 +56,7 @@ dependências de todos os pacotes.
 - PostgreSQL 16 via `docker-compose.yml` (uso local/dev). Em produção, Postgres
   gerenciado pelo Render (Fase 20).
 - Prisma como ORM. **Fase 1 tem só `datasource` + `generator`** — nenhum
-  modelo ainda. O schema completo (13 tabelas do briefing: `users`,
+  modelo ainda. O schema completo (14 tabelas do briefing: `users`,
   `youtube_accounts`, `searches`, `videos`, `video_metrics`, `trends`,
   `trend_videos`, `opportunities`, `content_projects`, `scripts`,
   `generated_titles`, `generated_descriptions`, `published_videos`,
