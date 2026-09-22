@@ -1,0 +1,19 @@
+# dependencies (reinstaladas no estágio "deps" do Dockerfile via npm ci)
+node_modules/
+**/node_modules/
+
+# segredos
+.env
+.env.*
+!.env.example
+
+# build output
+dist/
+**/dist/
+coverage/
+**/coverage/
+
+# controle de versão / editor
+.git/
+.vscode/
+.idea/
