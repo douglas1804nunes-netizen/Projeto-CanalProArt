@@ -22,6 +22,9 @@
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema=prisma/schema.prisma"
   },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
   "devDependencies": {
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.5.7",
