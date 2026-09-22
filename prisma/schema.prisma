@@ -1,0 +1,13 @@
+// Fase 1 (Arquitetura): apenas datasource + generator, para validar a conexão
+// com o Postgres via Prisma Client. Os modelos (users, youtube_accounts, videos,
+// trends, trend_videos, opportunities, content_projects, scripts, generated_titles,
+// generated_descriptions, published_videos, audit_logs, ...) entram na Fase 2.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

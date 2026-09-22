@@ -1,0 +1,30 @@
+# Variáveis de ambiente
+
+Copie `.env.example` para `.env` na raiz do projeto. O backend carrega esse
+`.env` da raiz (não cada workspace tem o seu). O frontend não usa nenhuma
+variável em desenvolvimento — o Vite faz proxy de `/api` para o backend.
+
+| Variável | Obrigatória a partir de | Descrição |
+|---|---|---|
+| `NODE_ENV` | Fase 1 | `development` \| `test` \| `production`. |
+| `PORT` | Fase 1 | Porta HTTP do backend (padrão `3000`). |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Fase 1 | Credenciais usadas pelo `docker-compose.yml` para subir o Postgres local. |
+| `DATABASE_URL` | Fase 1 | String de conexão do Prisma com o Postgres. Deve bater com as credenciais acima em dev. |
+| `JWT_SECRET` | Fase 3 | Segredo usado para assinar tokens de sessão. Gere um valor aleatório longo (`openssl rand -hex 32`). |
+| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | Fase 4 | Credenciais OAuth 2.0 do Google Cloud Console. Veja [YOUTUBE.md](YOUTUBE.md). |
+| `YOUTUBE_REDIRECT_URI` | Fase 4 | URL de callback do OAuth (`{BACKEND_URL}/api/youtube/callback`). |
+| `YOUTUBE_API_KEY` | Fase 5 | API key para chamadas públicas à YouTube Data API v3 (busca/estatísticas). |
+| `TOKEN_ENCRYPTION_KEY` | Fase 4 | Chave usada para criptografar `access_token`/`refresh_token` do YouTube antes de gravar no banco. Nunca reaproveitar o `JWT_SECRET` para isso. |
+| `AI_PROVIDER` | Fase 11 | Provider ativo por trás da interface `AIProvider` (`anthropic` por padrão neste projeto). |
+| `ANTHROPIC_API_KEY` | Fase 11 | Chave da Claude API (console.anthropic.com). |
+| `FRONTEND_URL` | Fase 1 | Origem permitida no CORS do backend (`http://localhost:5173` em dev). |
+| `BACKEND_URL` | Fase 4+ | Usada para montar `YOUTUBE_REDIRECT_URI` e em e-mails/links absolutos. |
+
+## Regras
+
+- **Nunca** commitar `.env` (já está no `.gitignore`).
+- **Nunca** expor `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `*_CLIENT_SECRET`,
+  `*_API_KEY` em logs, respostas de API ou no frontend.
+- Se uma variável obrigatória estiver ausente, o backend falha ao iniciar com
+  uma mensagem explícita (`src/env.ts`) — por design, para nunca rodar com
+  configuração inválida silenciosamente.
