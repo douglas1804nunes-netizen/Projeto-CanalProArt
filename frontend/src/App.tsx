@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { AppLayout } from "./layout/AppLayout";
 import { Dashboard } from "./pages/Dashboard";
+import { NotFoundPage } from "./pages/NotFoundPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
           path="/settings"
           element={<PlaceholderPage title="Configurações" phase="Fase 3" />}
         />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );
