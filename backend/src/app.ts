@@ -11,6 +11,7 @@ import { prisma } from "./prisma.js";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { youtubeRoutes } from "./routes/youtube.js";
+import { videoRoutes } from "./routes/videos.js";
 
 // O callback OAuth do YouTube (Fase 4) recebe "code"/"state" na query string,
 // que o serializer padrão do Fastify logaria em texto puro em "req.url" (pino
@@ -101,6 +102,7 @@ export function buildApp() {
   app.register(healthRoutes);
   app.register(authRoutes);
   app.register(youtubeRoutes);
+  app.register(videoRoutes);
 
   // Produção: o backend serve o build do frontend (mesma origem, sem CORS
   // entre front e back). Em dev, o Vite roda separado e faz proxy de /api
