@@ -11,6 +11,10 @@ type TrendVideo = {
   viewCount: string | null;
   likeCount: string | null;
   commentCount: string | null;
+  // Fase 7 — ver services/src/youtube/metrics.ts
+  velocity: number | null;
+  engagementRate: number;
+  recencyScore: number;
 };
 
 type SearchResult = { searchId: string; cached: boolean; fetchedAt: string; videos: TrendVideo[] };
@@ -42,6 +46,12 @@ function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
+function formatVelocity(value: number | null): string | null {
+  if (value === null) return null;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}mil views/h`;
+  return `${Math.round(value)} views/h`;
 }
 
 export function TrendsPage() {
@@ -188,6 +198,10 @@ export function TrendsPage() {
                       <p className="mt-2 text-xs text-slate-400">
                         {formatViewCount(video.viewCount)} visualizações ·{" "}
                         {formatDuration(video.durationSeconds)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {(video.engagementRate * 100).toFixed(1)}% engajamento
+                        {formatVelocity(video.velocity) && ` · ${formatVelocity(video.velocity)}`}
                       </p>
                     </div>
                   </li>

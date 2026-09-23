@@ -17,6 +17,9 @@ const sampleVideo = {
   viewCount: "1500000",
   likeCount: "1000",
   commentCount: "50",
+  velocity: 2500,
+  engagementRate: 0.032,
+  recencyScore: 0.8,
 };
 
 describe("TrendsPage", () => {
@@ -58,6 +61,8 @@ describe("TrendsPage", () => {
     expect(await screen.findByText("Um vídeo em alta")).toBeInTheDocument();
     expect(screen.getByText("Canal Teste")).toBeInTheDocument();
     expect(screen.getByText(/1\.5M visualizações/)).toBeInTheDocument();
+    expect(screen.getByText(/3\.2% engajamento/)).toBeInTheDocument();
+    expect(screen.getByText(/2\.5mil views\/h/)).toBeInTheDocument();
   });
 
   it("mostra erro quando a busca falha", async () => {
