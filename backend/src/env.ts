@@ -87,7 +87,27 @@ const envSchema = z
     BACKEND_URL: value.BACKEND_URL ?? "http://localhost:3000",
   }));
 
-const parsed = envSchema.safeParse(process.env);
+// No Render, a URL pública do serviço só é conhecida depois do primeiro deploy,
+// mas o Render a injeta em RENDER_EXTERNAL_URL. Como o deploy é same-origin
+// (backend serve o frontend), ela serve de padrão para as três URLs — o que
+// for definido explicitamente continua valendo.
+function withRenderDefaults(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const nonEmpty = (value: string | undefined) => (value === "" ? undefined : value);
+  const externalUrl = nonEmpty(source.RENDER_EXTERNAL_URL);
+  if (!externalUrl) {
+    return source;
+  }
+  const baseUrl = externalUrl.replace(/\/+$/, "");
+  return {
+    ...source,
+    FRONTEND_URL: nonEmpty(source.FRONTEND_URL) ?? baseUrl,
+    BACKEND_URL: nonEmpty(source.BACKEND_URL) ?? baseUrl,
+    YOUTUBE_REDIRECT_URI:
+      nonEmpty(source.YOUTUBE_REDIRECT_URI) ?? `${baseUrl}/api/youtube/callback`,
+  };
+}
+
+const parsed = envSchema.safeParse(withRenderDefaults(process.env));
 
 if (!parsed.success) {
   console.error("Variáveis de ambiente inválidas:", parsed.error.flatten().fieldErrors);

@@ -1,87 +1,88 @@
 # Deploy (Fase 20)
 
 Status: **banco de produção pronto no Supabase** (schema + migrations
-aplicados, RLS habilitado). O deploy do app em si no Render precisa de uma
-ação sua no painel deles — não existe uma ferramenta de automação pra isso
-aqui, ao contrário do Supabase.
+aplicados, RLS habilitado) e **blueprint do Render pronto** (`render.yaml`).
+O que falta é só você criar o serviço no painel do Render e colar 5 segredos
+— não há CLI/automação do Render disponível aqui, e segredos nunca devem
+passar por terceiros.
 
-## 1. Banco de dados (já feito)
+## Deploy em 3 passos
+
+1. Abra o link (o repositório é público, o Render lê o `render.yaml` sozinho):
+   <https://render.com/deploy?repo=https://github.com/douglas1804nunes-netizen/Projeto-CanalProArt>
+2. Faça login/conecte o GitHub e preencha as **5 variáveis** da tabela abaixo.
+3. Clique em **Apply**. O primeiro build leva alguns minutos (é um build
+   Docker completo: deps, Prisma, TypeScript, Vite).
+
+Quando o deploy ficar "Live", o Render mostra a URL do serviço
+(`https://canalproart.onrender.com`, ou com sufixo se o nome estiver em uso).
+Abra `<url>/api/health` — deve responder `{"status":"ok",...}`.
+
+## Variáveis que você preenche
+
+| Variável                | De onde vem                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | Connection string do Supabase — ver "Banco de dados" abaixo. **Se estiver errada, o deploy falha no health check.** |
+| `YOUTUBE_CLIENT_ID`     | Google Cloud Console → OAuth Client (ver [YOUTUBE.md](YOUTUBE.md)).                                                 |
+| `YOUTUBE_CLIENT_SECRET` | Idem.                                                                                                               |
+| `YOUTUBE_API_KEY`       | Google Cloud Console → API key com a YouTube Data API v3 habilitada (ver [YOUTUBE.md](YOUTUBE.md)).                 |
+| `ANTHROPIC_API_KEY`     | [console.anthropic.com](https://console.anthropic.com) → API Keys.                                                  |
+
+## O que o Render preenche sozinho
+
+- `JWT_SECRET` e `TOKEN_ENCRYPTION_KEY`: `generateValue: true` no
+  `render.yaml` (base64 de 256 bits, valores distintos, aceitos pela validação
+  de `backend/src/env.ts`). **Não troque `TOKEN_ENCRYPTION_KEY` depois** de
+  usuários conectarem o YouTube — os tokens gravados no banco ficariam
+  ilegíveis.
+- `FRONTEND_URL`, `BACKEND_URL` e `YOUTUBE_REDIRECT_URI`: não são declaradas.
+  O backend usa `RENDER_EXTERNAL_URL` (injetada pelo Render) como padrão — a
+  redirect URI vira `<url>/api/youtube/callback`. Se você usar um domínio
+  próprio, defina essas três explicitamente no painel (o valor explícito
+  vence o padrão).
+- `NODE_ENV=production` e `AI_PROVIDER=anthropic`: fixos no `render.yaml`.
+
+## Banco de dados (já feito)
 
 Projeto Supabase `CanalProArt` (região `sa-east-1`), com as 16 tabelas do
-schema já criadas e as 4 migrations existentes registradas como aplicadas
-(pra `prisma migrate deploy` não tentar recriá-las). RLS habilitado em toda
-tabela — sem policies, de propósito: o backend usa Prisma com a role
-`postgres` (que ignora RLS), não a API REST do Supabase, então RLS aqui só
-serve pra bloquear a API REST não usada caso a `anon key` vaze algum dia.
+schema e as 4 migrations existentes registradas como aplicadas. RLS
+habilitado em toda tabela — sem policies, de propósito: o backend usa Prisma
+com a role `postgres` (que ignora RLS), não a API REST do Supabase, então RLS
+aqui só bloqueia a API REST não usada caso a `anon key` vaze.
 
-**Se uma nova migration for adicionada depois deste deploy**, ela precisa
-ser aplicada manualmente nesse banco (via Supabase MCP ou
-`prisma migrate deploy` local apontando pra `DATABASE_URL` de produção) —
-o Dockerfile atual não roda migrations automaticamente no boot (decisão
-deliberada: `prisma` CLI é devDependency e não sobrevive ao
-`npm prune --omit=dev` do estágio de runtime; rodar migration como parte do
-boot do processo web é arriscado sem um mecanismo de lock, então por
-enquanto é manual).
+**Connection string:** [Project Settings → Database](https://supabase.com/dashboard/project/fmyhkyanxlvvgjwjjggp/settings/database)
+→ "Connection string" → modo **Session pooler** (não "Direct connection": o
+Render não tem saída IPv6 e a conexão direta do Supabase exige IPv6). Troque
+`[YOUR-PASSWORD]` pela senha do banco (se não souber mais, "Reset database
+password" na mesma página).
 
-## 2. Pegar a connection string do Supabase
+**Novas migrations:** o Dockerfile não roda migrations no boot (`prisma` CLI é
+devDependency e não sobrevive ao `npm prune --omit=dev`; rodar migration no
+boot do processo web é arriscado sem lock). Aplique manualmente (Supabase MCP
+ou `prisma migrate deploy` local apontando pro `DATABASE_URL` de produção).
 
-Acesse **Project Settings → Database** no [painel do
-projeto](https://supabase.com/dashboard/project/fmyhkyanxlvvgjwjjggp/settings/database).
+## Depois do deploy: conectar o YouTube de verdade
 
-Em "Connection string", use o modo **Session pooler** (não o "Direct
-connection") — o Render não tem saída IPv6, e a conexão direta do Supabase
-exige IPv6 a menos que você pague o add-on de IPv4. O pooler funciona em
-IPv4 e é compatível com o Prisma sem flags extras.
+1. No Google Cloud Console → OAuth Client → **Authorized redirect URIs**,
+   adicione `https://<url-do-serviço>/api/youtube/callback` (a URL exata que o
+   Render mostrou). Sem isso o Google recusa o callback.
+2. Se a tela de consentimento estiver em modo **Testing**, adicione sua conta
+   em "Test users" (ver [YOUTUBE.md](YOUTUBE.md)).
+3. No app: `/youtube` → conectar canal.
 
-Copie a URI e troque `[YOUR-PASSWORD]` pela senha do banco (definida na
-criação do projeto; se não souber mais, tem um botão "Reset database
-password" na mesma página — só lembre de usar a senha nova depois).
+## Limitações do plano `free`
 
-## 3. Criar o Web Service no Render
+- O serviço **dorme após ~15 min sem tráfego** e a primeira requisição depois
+  disso demora ~30–60 s (cold start).
+- O disco é **efêmero**: vídeos enviados em `/content/:id` (Fase 13, gravados em
+  `backend/uploads/`) somem a cada redeploy/restart. Como o upload pro YouTube
+  (Fase 16) lê desse disco, envie e publique na mesma sessão. Para persistir,
+  é preciso um plano pago com Persistent Disk (montado em `backend/uploads`) ou
+  migrar o armazenamento pra um bucket (S3/Supabase Storage).
 
-1. [render.com](https://dashboard.render.com) → **New** → **Blueprint**.
-2. Conecte sua conta do GitHub (se ainda não conectada) e selecione o
-   repositório `Projeto-CanalProArt`.
-3. O Render detecta o `render.yaml` da raiz automaticamente e propõe criar
-   um Web Service chamado `canalproart` (Docker, usando
-   `backend/Dockerfile`).
-4. Preencha as variáveis marcadas como obrigatórias (ver tabela abaixo) e
-   confirme.
+## Sem credenciais reais
 
-## 4. Variáveis de ambiente
-
-| Variável                | Valor                                                                                                                                                            |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`          | A connection string do passo 2 (Session pooler, com a senha já substituída).                                                                                     |
-| `JWT_SECRET`            | Gere com `openssl rand -hex 32`.                                                                                                                                 |
-| `TOKEN_ENCRYPTION_KEY`  | Gere com `openssl rand -hex 32` — **precisa ser diferente** do `JWT_SECRET`.                                                                                     |
-| `YOUTUBE_CLIENT_ID`     | Do Google Cloud Console (ver [docs/YOUTUBE.md](YOUTUBE.md)). Sem uma credencial real, OAuth não funciona de verdade — mesma limitação já existente em dev.       |
-| `YOUTUBE_CLIENT_SECRET` | Idem.                                                                                                                                                            |
-| `YOUTUBE_API_KEY`       | Idem — sem ela, a busca de tendências (`/trends`) não funciona de verdade.                                                                                       |
-| `YOUTUBE_REDIRECT_URI`  | `https://<nome-do-serviço>.onrender.com/api/youtube/callback` — só dá pra saber o domínio exato depois do primeiro deploy (passo 5).                             |
-| `ANTHROPIC_API_KEY`     | Chave real da Anthropic ([console.anthropic.com](https://console.anthropic.com)). Sem ela, a geração por IA responde 502 de forma limpa (mesma situação de dev). |
-| `FRONTEND_URL`          | Mesma URL do serviço (`https://<nome-do-serviço>.onrender.com`) — é deploy same-origin, backend serve o frontend.                                                |
-| `BACKEND_URL`           | Mesma URL do serviço, de novo.                                                                                                                                   |
-
-`NODE_ENV=production` e `AI_PROVIDER=anthropic` já vêm fixos no
-`render.yaml`, não precisa preencher.
-
-## 5. Depois do primeiro deploy
-
-O Render atribui a URL só depois que o serviço existe (`https://
-canalproart.onrender.com`, ou com um sufixo se o nome já estiver em uso).
-Depois de confirmar a URL real:
-
-1. Atualize `FRONTEND_URL`, `BACKEND_URL` e `YOUTUBE_REDIRECT_URI` no
-   painel do Render com a URL exata (isso dispara um redeploy automático).
-2. Se for usar OAuth do YouTube de verdade: adicione essa mesma
-   `YOUTUBE_REDIRECT_URI` na lista de "Authorized redirect URIs" do OAuth
-   Client no Google Cloud Console — sem isso o Google recusa o callback.
-
-## O que funciona sem credenciais reais do Google/Anthropic
-
-Cadastro, login, dashboard, e toda a navegação funcionam normalmente com
-placeholders. As chamadas de rede reais (busca de tendências, geração por
-IA, upload pro YouTube) respondem um erro limpo (502) até você configurar
-credenciais de verdade — mesmo comportamento já validado em dev ao longo
-das Fases 4, 5, 11 e 16.
+Sem as credenciais do Google/Anthropic, o serviço sobe e cadastro, login,
+dashboard e navegação funcionam; as chamadas de rede reais (busca de
+tendências, geração por IA, upload pro YouTube) respondem um erro limpo (502)
+— mesmo comportamento validado em dev nas Fases 4, 5, 11 e 16.

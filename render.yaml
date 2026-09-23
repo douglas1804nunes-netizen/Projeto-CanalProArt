@@ -2,6 +2,11 @@
 # Cria um único Web Service (Docker) que builda backend/Dockerfile a partir
 # da raiz do monorepo. O Fastify serve o build do frontend na mesma origem
 # (ver docs/ARCHITECTURE.md, "Deploy") — não há Static Site separado.
+#
+# FRONTEND_URL / BACKEND_URL / YOUTUBE_REDIRECT_URI não são declaradas aqui de
+# propósito: o backend usa RENDER_EXTERNAL_URL (injetada pelo Render) como
+# padrão (ver backend/src/env.ts), então não há passo manual de "voltar e
+# preencher a URL depois do primeiro deploy".
 services:
   - type: web
     name: canalproart
@@ -13,25 +18,22 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        sync: false
+      - key: AI_PROVIDER
+        value: anthropic
+      # Gerados pelo Render (base64 de 256 bits) — valores distintos entre si,
+      # aceitos pela validação de src/env.ts.
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
       - key: TOKEN_ENCRYPTION_KEY
+        generateValue: true
+      # Segredos que você cola no painel (sync: false = nunca vão pro git).
+      - key: DATABASE_URL
         sync: false
       - key: YOUTUBE_CLIENT_ID
         sync: false
       - key: YOUTUBE_CLIENT_SECRET
         sync: false
-      - key: YOUTUBE_REDIRECT_URI
-        sync: false
       - key: YOUTUBE_API_KEY
         sync: false
-      - key: AI_PROVIDER
-        value: anthropic
       - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: FRONTEND_URL
-        sync: false
-      - key: BACKEND_URL
         sync: false
