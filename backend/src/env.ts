@@ -44,18 +44,21 @@ const envSchema = z
       z.string().url("BACKEND_URL deve ser uma URL válida (ex.: http://localhost:3000)").optional(),
     ),
     JWT_SECRET: z.string().min(32, "JWT_SECRET precisa ter pelo menos 32 caracteres"),
-    // Opcional até a Fase 4 (criptografia dos tokens OAuth do YouTube). Quando
-    // definida, já valida o formato esperado para AES-256-GCM.
-    TOKEN_ENCRYPTION_KEY: z.preprocess(
-      emptyToUndefined,
-      z
-        .string()
-        .optional()
-        .refine((value) => value === undefined || isValidAes256GcmKey(value), {
-          message:
-            "TOKEN_ENCRYPTION_KEY deve ser uma chave de 32 bytes em hex (64 caracteres) ou base64 (AES-256-GCM)",
-        }),
-    ),
+    // Criptografa os tokens OAuth do YouTube (Fase 4) — precisa ser distinta
+    // do JWT_SECRET (checado no superRefine abaixo).
+    TOKEN_ENCRYPTION_KEY: z.string().refine(isValidAes256GcmKey, {
+      message:
+        "TOKEN_ENCRYPTION_KEY deve ser uma chave de 32 bytes em hex (64 caracteres) ou base64 (AES-256-GCM)",
+    }),
+    YOUTUBE_CLIENT_ID: z.string().min(1, "YOUTUBE_CLIENT_ID é obrigatório (ver docs/YOUTUBE.md)"),
+    YOUTUBE_CLIENT_SECRET: z
+      .string()
+      .min(1, "YOUTUBE_CLIENT_SECRET é obrigatório (ver docs/YOUTUBE.md)"),
+    YOUTUBE_REDIRECT_URI: z
+      .string()
+      .url(
+        "YOUTUBE_REDIRECT_URI deve ser uma URL válida (ex.: http://localhost:3000/api/youtube/callback)",
+      ),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === "production" && !value.FRONTEND_URL) {
@@ -63,6 +66,13 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ["FRONTEND_URL"],
         message: "FRONTEND_URL é obrigatório em produção (não há valor padrão de localhost)",
+      });
+    }
+    if (value.TOKEN_ENCRYPTION_KEY === value.JWT_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["TOKEN_ENCRYPTION_KEY"],
+        message: "TOKEN_ENCRYPTION_KEY precisa ser diferente de JWT_SECRET",
       });
     }
   })

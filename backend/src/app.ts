@@ -10,14 +10,30 @@ import { env, rootDir } from "./env.js";
 import { prisma } from "./prisma.js";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
+import { youtubeRoutes } from "./routes/youtube.js";
+
+// O callback OAuth do YouTube (Fase 4) recebe "code"/"state" na query string,
+// que o serializer padrão do Fastify logaria em texto puro em "req.url" (pino
+// redact não alcança substrings dentro de um campo — só o campo inteiro).
+const SENSITIVE_QUERY_PARAMS = ["code", "state", "access_token", "refresh_token", "token"];
+
+function redactSensitiveQueryParams(rawUrl: string): string {
+  const [path, query] = rawUrl.split("?");
+  if (!query) return rawUrl;
+
+  const params = new URLSearchParams(query);
+  for (const key of SENSITIVE_QUERY_PARAMS) {
+    if (params.has(key)) {
+      params.set(key, "[REDACTED]");
+    }
+  }
+  return `${path}?${params.toString()}`;
+}
 
 export function buildApp() {
   const app = Fastify({
     logger: {
       redact: {
-        // Cobre os headers sensíveis de hoje; campos de token de request/response
-        // (JWT da Fase 3, OAuth do YouTube da Fase 4) devem ser adicionados aqui
-        // assim que existirem.
         paths: [
           "req.headers.authorization",
           "req.headers.cookie",
@@ -28,6 +44,17 @@ export function buildApp() {
           "req.body.refreshToken",
         ],
         censor: "[REDACTED]",
+      },
+      serializers: {
+        req(request) {
+          return {
+            method: request.method,
+            url: redactSensitiveQueryParams(request.url),
+            host: request.host,
+            remoteAddress: request.ip,
+            remotePort: request.socket ? request.socket.remotePort : undefined,
+          };
+        },
       },
       transport:
         env.NODE_ENV === "development"
@@ -73,6 +100,7 @@ export function buildApp() {
 
   app.register(healthRoutes);
   app.register(authRoutes);
+  app.register(youtubeRoutes);
 
   // Produção: o backend serve o build do frontend (mesma origem, sem CORS
   // entre front e back). Em dev, o Vite roda separado e faz proxy de /api
