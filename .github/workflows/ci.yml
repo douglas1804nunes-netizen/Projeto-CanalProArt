@@ -65,6 +65,7 @@ jobs:
           YOUTUBE_CLIENT_ID: ci-test-only-client-id
           YOUTUBE_CLIENT_SECRET: ci-test-only-client-secret
           YOUTUBE_REDIRECT_URI: http://localhost:3000/api/youtube/callback
+          YOUTUBE_API_KEY: ci-test-only-api-key
 
       - name: Build
         run: npm run build
