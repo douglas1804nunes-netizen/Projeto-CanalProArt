@@ -23,6 +23,13 @@ dependências de todos os pacotes.
   (ex.: `YouTubeService`, `AIProvider`) possam ser chamados tanto pelas rotas
   HTTP do Fastify quanto pelos workers do BullMQ (Fase 21+) sem duplicar código
   nem criar uma dependência circular `backend → workers`.
+  **Importante:** `backend/` importa `@canalproart/services` pelo pacote
+  publicado (`services/dist`, via `package.json#main`), não pelo código-fonte
+  — então `services/` precisa estar **buildado** antes de `backend/` rodar,
+  seja em dev, teste ou build. Os scripts `predev:backend`/`pretest`/
+  `pretypecheck` da raiz já cuidam disso automaticamente (hooks do npm); só é
+  preciso rodar `npm run dev:services` manualmente (`tsc --watch`) se for
+  editar `services/src` com o backend já rodando.
 - `prisma/` fica na raiz (não dentro de `backend/`) porque o schema é uma fonte
   única de verdade que poderá ser consumida por `backend/` e futuramente por
   `workers/` sem duplicar o client. Os scripts `prisma:*` da raiz apontam para
@@ -81,8 +88,9 @@ dependências de todos os pacotes.
   vez (`channelId` é `@unique`); o callback rejeita com 409 se outro usuário
   já tiver conectado aquele canal, em vez de reatribuir silenciosamente.
 - `src/youtube/tokens.ts` (`getValidAccessToken`) renova o `access_token`
-  via `refresh_token` quando está perto de expirar — usado a partir da Fase 5
-  (`YouTubeService`), que ainda não existe.
+  via `refresh_token` quando está perto de expirar — ainda sem consumidor
+  (nenhuma rota chama a API do YouTube _em nome do usuário_ ainda; o
+  `YouTubeService` da Fase 5 usa a `YOUTUBE_API_KEY`, não OAuth).
 - Logger: `code`/`state`/`access_token`/`refresh_token` são removidos da
   query string antes de logar `req.url` (serializer customizado em
   `app.ts`) — o `redact` do pino só apaga campos inteiros de um objeto, não
@@ -96,6 +104,46 @@ dependências de todos os pacotes.
   validado manualmente que o redirect para `accounts.google.com` é bem
   formado (Google responde `invalid_client` com credenciais placeholder, como
   esperado).
+
+### YouTube Data API — `YouTubeService` (Fase 5)
+
+- Vive em `services/src/youtube/` (não em `backend/`) — reutilizável por
+  workers a partir da Fase 21+, como já estava planejado desde a Fase 1. Usa
+  `YOUTUBE_API_KEY` (chamadas públicas), não OAuth — diferente da Fase 4.
+- Três camadas separadas, cada uma só faz uma coisa: `client.ts` (chamada
+  HTTP crua ao Google), `mapper.ts` (funções puras: resposta da API →
+  formato das tabelas `videos`/`video_metrics`) e `persist.ts` (upsert no
+  Postgres via Prisma injetado). Só `client.ts` depende de rede — os outros
+  dois são testáveis sem nenhuma credencial.
+- `getPopularVideos` chama `videos.list?chart=mostPopular` (1 unidade de
+  cota) em vez de `search.list` (100 unidades) — prioridade já documentada
+  em docs/YOUTUBE.md. Resultado é cacheado no banco (`fetchedAt`) via
+  `persistVideos`, que faz upsert por `youtubeVideoId` (não duplica o vídeo)
+  e sempre cria uma nova linha em `video_metrics` (série temporal).
+- Config (API key, `PrismaClient`) é **injetada** em `createYoutubeService()`
+  — o serviço não lê `process.env` nem instancia seu próprio `PrismaClient`,
+  pra não abrir um segundo pool de conexões e pra funcionar igual quando um
+  worker (Fase 21+) o chamar com a config dele.
+- Rota fina em `backend/src/routes/videos.ts`
+  (`GET /api/videos/popular?regionCode=BR`, autenticada) só existe pra
+  expor/testar o serviço — a tela de busca de tendências é a Fase 6.
+- **Dois bugs reais encontrados testando a imagem Docker** (não só os testes
+  automatizados): (1) `backend/` importa `@canalproart/services` pelo
+  pacote publicado, então `services/` precisa estar _buildado_ antes —
+  scripts `predev:backend`/`pretest`/`pretypecheck` (hooks do npm) resolvem
+  isso agora; (2) o estágio de runtime do Dockerfile copiava
+  `services/dist` mas não `services/package.json` — o symlink do workspace
+  em `node_modules/@canalproart/services` ficava quebrado e o container
+  crashava no boot (`ERR_MODULE_NOT_FOUND`). Corrigido e revalidado com
+  `docker build` + `docker run` reais antes de dar como pronto.
+- **Testado sem credenciais reais do Google**: `mapper.test.ts` (parsing de
+  duração ISO 8601, mapeamento de campos, bigint de estatísticas) e
+  `persist.test.ts` (upsert idempotente, nova métrica a cada chamada,
+  múltiplos vídeos de uma vez) contra o Postgres real, com dados fabricados
+  como se já tivessem vindo da API. A chamada de verdade a `videos.list`
+  não foi validada (exige `YOUTUBE_API_KEY` real); validado manualmente via
+  curl que a rota autentica, valida `regionCode` e responde 502 de forma
+  limpa quando a API key é inválida (em vez de derrubar o processo).
 
 ## Frontend
 
@@ -174,7 +222,7 @@ dependências de todos os pacotes.
 | 2    | PostgreSQL + Prisma (schema completo) ✅                                                                      |
 | 3    | Autenticação (cadastro/login/JWT) + `@fastify/helmet` e `@fastify/rate-limit` ✅                              |
 | 4    | YouTube OAuth (connect/callback/refresh/disconnect) ✅                                                        |
-| 5    | YouTube Data API (`YouTubeService`)                                                                           |
+| 5    | YouTube Data API (`YouTubeService`) ✅                                                                        |
 | 6    | Pesquisa de tendências (`/trends`)                                                                            |
 | 7    | Métricas (velocidade/engajamento/recência/volume)                                                             |
 | 8    | Trend Score (cálculo server-side) + classificação                                                             |

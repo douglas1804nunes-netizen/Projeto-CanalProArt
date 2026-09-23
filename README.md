@@ -10,8 +10,8 @@ através da API oficial do YouTube.
 > públicas. Toda publicação exige um vídeo enviado pelo próprio usuário com
 > direitos declarados (ORIGINAL, AUTHORIZED, LICENSED ou PUBLIC_DOMAIN).
 
-**Status atual: Fase 4 — YouTube OAuth (connect/callback/refresh/disconnect).**
-Veja o roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+**Status atual: Fase 5 — YouTube Data API (`YouTubeService`).** Veja o
+roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack
 
@@ -38,11 +38,12 @@ Veja o roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
 
-   `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET`/`YOUTUBE_REDIRECT_URI` também
-   são obrigatórios a partir da Fase 4 — qualquer valor não vazio deixa o
-   backend subir, mas só com credenciais reais do Google Cloud Console
-   (veja [docs/YOUTUBE.md](docs/YOUTUBE.md)) o botão "Conectar YouTube"
-   funciona de ponta a ponta.
+   `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET`/`YOUTUBE_REDIRECT_URI`/
+   `YOUTUBE_API_KEY` também são obrigatórios a partir da Fase 4/5 — qualquer
+   valor não vazio deixa o backend subir, mas só com credenciais reais do
+   Google Cloud Console (veja [docs/YOUTUBE.md](docs/YOUTUBE.md)) o botão
+   "Conectar YouTube" e a busca de vídeos populares funcionam de ponta a
+   ponta.
 
 2. Instale as dependências de todos os workspaces (raiz, `backend`, `frontend`,
    `services`, `workers`):
@@ -78,18 +79,19 @@ Veja o roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Rodados na raiz, cobrem os workspaces relevantes (`backend`, `frontend`,
 `services`, `workers`):
 
-| Script                    | O que faz                                               |
-| ------------------------- | ------------------------------------------------------- |
-| `npm run dev:backend`     | Backend em modo watch (`tsx`) — `http://localhost:3000` |
-| `npm run dev:frontend`    | Frontend em modo dev (Vite) — `http://localhost:5173`   |
-| `npm run lint`            | ESLint em todos os workspaces                           |
-| `npm run typecheck`       | `tsc --noEmit` em todos os workspaces                   |
-| `npm run format`          | Formata o repo com Prettier                             |
-| `npm run format:check`    | Só verifica a formatação (usado no CI)                  |
-| `npm test`                | Testes (backend precisa do Postgres rodando — passo 3)  |
-| `npm run build`           | Build de produção (`services` → `backend` → `frontend`) |
-| `npm run prisma:generate` | Gera o Prisma Client a partir de `prisma/schema.prisma` |
-| `npm run prisma:migrate`  | Roda migrations do Prisma em dev                        |
+| Script                    | O que faz                                                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev:backend`     | Backend em modo watch (`tsx`) — `http://localhost:3000` (builda `services` antes, se preciso)                              |
+| `npm run dev:frontend`    | Frontend em modo dev (Vite) — `http://localhost:5173`                                                                      |
+| `npm run dev:services`    | `services/` em modo watch (`tsc --watch`) — rode num terceiro terminal se for editar `services/src` com o backend já no ar |
+| `npm run lint`            | ESLint em todos os workspaces                                                                                              |
+| `npm run typecheck`       | `tsc --noEmit` em todos os workspaces                                                                                      |
+| `npm run format`          | Formata o repo com Prettier                                                                                                |
+| `npm run format:check`    | Só verifica a formatação (usado no CI)                                                                                     |
+| `npm test`                | Testes (backend precisa do Postgres rodando — passo 3)                                                                     |
+| `npm run build`           | Build de produção (`services` → `backend` → `frontend`)                                                                    |
+| `npm run prisma:generate` | Gera o Prisma Client a partir de `prisma/schema.prisma`                                                                    |
+| `npm run prisma:migrate`  | Roda migrations do Prisma em dev                                                                                           |
 
 ## Docker (build de produção)
 
@@ -105,16 +107,25 @@ docker run --rm -p 3000:3000 \
   -e NODE_ENV=production \
   -e DATABASE_URL="postgresql://canalproart:canalproart@host.docker.internal:5432/canalproart?schema=public" \
   -e FRONTEND_URL="http://localhost:3000" \
+  -e JWT_SECRET="<32+ caracteres>" \
+  -e TOKEN_ENCRYPTION_KEY="<32 bytes hex ou base64, diferente do JWT_SECRET>" \
+  -e YOUTUBE_CLIENT_ID="<do Google Cloud Console>" \
+  -e YOUTUBE_CLIENT_SECRET="<do Google Cloud Console>" \
+  -e YOUTUBE_REDIRECT_URI="http://localhost:3000/api/youtube/callback" \
+  -e YOUTUBE_API_KEY="<do Google Cloud Console>" \
   canalproart-backend
 ```
+
+(As variáveis obrigatórias são as mesmas do `.env` — ver
+[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).)
 
 Roda como usuário não-root (`node`) e expõe um `HEALTHCHECK` em `/api/health`.
 
 ## CI
 
 Todo push/PR para `main` roda `.github/workflows/ci.yml`: install → lint →
-format check → typecheck → test (com Postgres como service container) →
-build.
+format check → typecheck → migrations → test (com Postgres como service
+container) → build.
 
 ## Testes
 
