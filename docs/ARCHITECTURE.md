@@ -310,6 +310,46 @@ dependências de todos os pacotes.
   dashboard, link na lista de oportunidades, link "Ver análise completa"
   após uma busca em cache) navegam pro mesmo trend.
 
+### IA — `AIProvider` (Fase 11)
+
+- Vive em `services/src/ai/` (mesmo motivo do `YouTubeService`: reutilizável
+  por workers a partir da Fase 21+). `provider.ts` define a interface
+  `AIProvider` (`generateIdeas`/`generateScript`/`generateTitles`/
+  `generateDescription`) — todo o resto do código depende só dela, nunca de
+  um provider concreto. `createAIProvider({ provider, apiKey })` em
+  `ai/index.ts` é o único lugar que decide qual implementação instanciar a
+  partir de `AI_PROVIDER`; hoje só `"anthropic"` existe
+  (`anthropicProvider.ts`), mas trocar de provider no futuro não deveria
+  exigir mudar `backend/src/routes/ai.ts`.
+- Mesma separação em camadas do `YouTubeService`: `client.ts` (chamada crua
+  à Messages API da Anthropic, sem noção de domínio), `prompts.ts` (funções
+  puras que montam `{ system, prompt }` pra cada capacidade — testáveis sem
+  rede) e `parser.ts` (extrai um array de strings da resposta de
+  ideias/títulos, removendo cercas de código markdown que o modelo às vezes
+  inclui mesmo quando instruído a não usar — mais robusto que confiar 100%
+  que o modelo sempre obedece o formato pedido).
+- Modelo fixado em `ANTHROPIC_MODEL` (`client.ts`) em vez de configurável
+  via env var — não há necessidade real de trocar de modelo por ambiente
+  ainda (YAGNI, mesma lógica do resto do `services/`).
+- `backend/src/routes/ai.ts`: quatro rotas finas (`POST /api/ai/ideas`,
+  `/script`, `/titles`, `/description`), autenticadas e com rate limit mais
+  apertado (10/min) que rotas de leitura — cada geração custa tokens de
+  verdade. Só existem pra expor/testar o `AIProvider`; nada é persistido
+  ainda (`Script`/`GeneratedTitle`/`GeneratedDescription` — já existentes
+  no schema desde a Fase 2 — só passam a ser gravados quando existir um
+  `ContentProject` de verdade pra ligar, na Fase 12), então essas rotas
+  simplesmente devolvem o texto/array gerado.
+- **Testado sem credenciais reais da Anthropic**: `prompts.ts` e
+  `parser.ts` são puros e cobertos com dado fabricado (inclusão correta de
+  tópico/quantidade/roteiro no prompt; parsing de JSON limpo, com cerca de
+  código com/sem a tag `json`, e os erros esperados para JSON inválido ou
+  que não é array de strings). As rotas têm sua guarda de autenticação e
+  validação de parâmetros testadas; a chamada de verdade à Anthropic API
+  não foi validada (exige `ANTHROPIC_API_KEY` real — mesma situação do
+  `YOUTUBE_API_KEY` na Fase 5). Validado manualmente via curl com a chave
+  placeholder do `.env`: a rota responde 502 de forma limpa (sem derrubar o
+  processo) quando a Anthropic API rejeita a chave.
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -394,7 +434,7 @@ dependências de todos os pacotes.
 | 8    | Trend Score (cálculo server-side) + classificação ✅                                                          |
 | 9    | Dashboard (cards, gráfico, top oportunidades) ✅                                                              |
 | 10   | Página de análise de tendência ✅                                                                             |
-| 11   | IA (`AIProvider`: ideias/roteiro/títulos/descrição)                                                           |
+| 11   | IA (`AIProvider`: ideias/roteiro/títulos/descrição) ✅                                                        |
 | 12   | Content Projects                                                                                              |
 | 13   | Upload de mídia (vídeo próprio/autorizado)                                                                    |
 | 14   | Validação de direitos                                                                                         |
