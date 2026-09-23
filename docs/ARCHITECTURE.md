@@ -200,6 +200,39 @@ dependências de todos os pacotes.
 - Frontend mostra engajamento (%) e velocidade (`views/h`, omitida quando
   `null`) em cada card — ver `TrendsPage.tsx`.
 
+### Trend Score + classificação (Fase 8)
+
+- `services/src/youtube/trendScore.ts`: `calculateVideoScore` combina
+  velocity/engagementRate/recencyScore normalizados (0-1) com pesos
+  (velocidade 0.5, engajamento 0.3, recência 0.2 — velocidade pesa mais
+  porque é o que diferencia "em alta" de "só popular"); `calculateTrendScore`
+  tira a média dos scores dos vídeos de um trend, com um bônus pequeno de
+  volume, e escala pra 0-100 (mais legível que 0-1); `classifyTrend` decide
+  RISING/HOT/STABLE/DECLINING. Pesos/tetos/thresholds são estimativas
+  iniciais documentadas no código, não números validados com dado real de
+  uso — candidatos a ajuste.
+- Classificação: score ≥ 70 já é **HOT** independente de histórico. Sem
+  trend anterior do mesmo tópico/região pra comparar (1ª busca), cai em
+  **STABLE** por padrão — não dá pra inferir trajetória sem um ponto de
+  comparação. Com histórico, RISING/DECLINING dependem da variação passar
+  de 5 pontos.
+- `POST /api/trends/search` só cria um `Trend`/`TrendVideo` novo numa busca
+  **nova de verdade** (cache-miss) — cache-hit só lê o Trend já calculado
+  pro mesmo `(userId, topic, regionCode)`, sem recalcular nem duplicar a
+  cada reload de página. `Trend.topic` é obrigatório no schema (diferente
+  de `Search.query`, que pode ser `null`) — buscas sem palavra-chave usam
+  o topic `"populares"`.
+- `GET /api/trends` lista os trends já calculados do usuário (mais recente
+  primeiro) — visão geral do que foi classificado até agora.
+- Frontend mostra um badge de classificação (🔥/📈/➡️/📉 + score) no
+  cabeçalho dos resultados — ver `TrendsPage.tsx`.
+- **Testado sem credenciais reais do Google**: cache-hit com Trend
+  pré-calculado (dados fabricados), isolamento de `GET /api/trends` por
+  usuário — ver `trends.test.ts`. Validado ao vivo no navegador com dados
+  semeados direto no banco: badge "🔥 Em alta · 82" renderiza com a cor
+  certa, engajamento calculado bate com os números semeados (420k/5M =
+  8.4%).
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -281,7 +314,7 @@ dependências de todos os pacotes.
 | 5    | YouTube Data API (`YouTubeService`) ✅                                                                        |
 | 6    | Pesquisa de tendências (`/trends`) ✅                                                                         |
 | 7    | Métricas (velocidade/engajamento/recência/volume) ✅                                                          |
-| 8    | Trend Score (cálculo server-side) + classificação                                                             |
+| 8    | Trend Score (cálculo server-side) + classificação ✅                                                          |
 | 9    | Dashboard (cards, gráfico, top oportunidades)                                                                 |
 | 10   | Página de análise de tendência                                                                                |
 | 11   | IA (`AIProvider`: ideias/roteiro/títulos/descrição)                                                           |
