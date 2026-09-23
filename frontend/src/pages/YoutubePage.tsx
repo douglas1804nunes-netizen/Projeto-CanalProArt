@@ -74,7 +74,7 @@ export function YoutubePage() {
     <div className="max-w-2xl">
       <h1 className="text-2xl font-semibold tracking-tight">YouTube</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Conecte um canal do YouTube para publicar vídeos a partir da Fase 16.
+        Conecte um canal do YouTube para publicar vídeos.
       </p>
 
       {showConnectedBanner && (

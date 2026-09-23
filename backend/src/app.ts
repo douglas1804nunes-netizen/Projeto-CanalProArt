@@ -19,6 +19,7 @@ import { opportunityRoutes } from "./routes/opportunities.js";
 import { aiRoutes } from "./routes/ai.js";
 import { contentProjectRoutes } from "./routes/contentProjects.js";
 import { mediaRoutes } from "./routes/media.js";
+import { publishRoutes } from "./routes/publish.js";
 
 // Vídeos podem ser grandes — 500MB é um teto razoável pra upload local de
 // dev sem travar o processo com arquivos absurdos (ver docs/ARCHITECTURE.md,
@@ -125,6 +126,7 @@ export function buildApp() {
   app.register(aiRoutes);
   app.register(contentProjectRoutes);
   app.register(mediaRoutes);
+  app.register(publishRoutes);
 
   // Produção: o backend serve o build do frontend (mesma origem, sem CORS
   // entre front e back). Em dev, o Vite roda separado e faz proxy de /api
