@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app.js";
 import { prisma } from "../prisma.js";
+import { maybeCreateOpportunity } from "./trends.js";
 
 // Requer Postgres real — sem mocks. O caminho que chama a YouTube Data API
 // de verdade (busca sem cache) não dá pra testar sem credenciais reais do
@@ -13,8 +14,10 @@ describe("Rotas de tendências (Fases 6-8)", () => {
   const createdVideoIds: string[] = [];
   const createdSearchIds: string[] = [];
   const createdTrendIds: string[] = [];
+  const createdOpportunityIds: string[] = [];
 
   afterAll(async () => {
+    await prisma.opportunity.deleteMany({ where: { id: { in: createdOpportunityIds } } });
     await prisma.trendVideo.deleteMany({ where: { trendId: { in: createdTrendIds } } });
     await prisma.trend.deleteMany({ where: { id: { in: createdTrendIds } } });
     await prisma.searchVideo.deleteMany({ where: { searchId: { in: createdSearchIds } } });
@@ -258,5 +261,79 @@ describe("Rotas de tendências (Fases 6-8)", () => {
 
     expect(searchesA.some((s) => s.id === search.id)).toBe(true);
     expect(searchesB.some((s) => s.id === search.id)).toBe(false);
+  });
+
+  // Fase 9: testa maybeCreateOpportunity diretamente, sem passar pelo
+  // caminho de busca nova (que depende de rede) — ver comentário na função.
+  describe("maybeCreateOpportunity", () => {
+    async function seedTrend(userId: string, classification: string, trendScore = 75) {
+      const trend = await prisma.trend.create({
+        data: {
+          userId,
+          topic: `topico-${classification}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          regionCode: "BR",
+          trendScore,
+          classification,
+          fetchedAt: new Date(),
+        },
+      });
+      createdTrendIds.push(trend.id);
+      return trend;
+    }
+
+    it("cria uma Opportunity quando o Trend é HOT", async () => {
+      const { userId } = await registerUser("opp-hot");
+      const trend = await seedTrend(userId, "HOT", 80);
+
+      await maybeCreateOpportunity(trend);
+
+      const opportunity = await prisma.opportunity.findFirst({ where: { trendId: trend.id } });
+      expect(opportunity).not.toBeNull();
+      expect(opportunity).toMatchObject({ userId, score: 80, status: "NEW" });
+      if (opportunity) createdOpportunityIds.push(opportunity.id);
+    });
+
+    it("cria uma Opportunity quando o Trend é RISING", async () => {
+      const { userId } = await registerUser("opp-rising");
+      const trend = await seedTrend(userId, "RISING", 60);
+
+      await maybeCreateOpportunity(trend);
+
+      const opportunity = await prisma.opportunity.findFirst({ where: { trendId: trend.id } });
+      expect(opportunity).not.toBeNull();
+      if (opportunity) createdOpportunityIds.push(opportunity.id);
+    });
+
+    it("não cria Opportunity quando o Trend é STABLE", async () => {
+      const { userId } = await registerUser("opp-stable");
+      const trend = await seedTrend(userId, "STABLE", 40);
+
+      await maybeCreateOpportunity(trend);
+
+      const opportunity = await prisma.opportunity.findFirst({ where: { trendId: trend.id } });
+      expect(opportunity).toBeNull();
+    });
+
+    it("não cria Opportunity quando o Trend é DECLINING", async () => {
+      const { userId } = await registerUser("opp-declining");
+      const trend = await seedTrend(userId, "DECLINING", 30);
+
+      await maybeCreateOpportunity(trend);
+
+      const opportunity = await prisma.opportunity.findFirst({ where: { trendId: trend.id } });
+      expect(opportunity).toBeNull();
+    });
+
+    it("não duplica Opportunity se já existe uma pro mesmo trendId", async () => {
+      const { userId } = await registerUser("opp-no-dup");
+      const trend = await seedTrend(userId, "HOT", 90);
+
+      await maybeCreateOpportunity(trend);
+      await maybeCreateOpportunity(trend);
+
+      const opportunities = await prisma.opportunity.findMany({ where: { trendId: trend.id } });
+      expect(opportunities).toHaveLength(1);
+      createdOpportunityIds.push(...opportunities.map((o) => o.id));
+    });
   });
 });

@@ -123,7 +123,29 @@ async function createTrend(params: {
     });
   }
 
+  await maybeCreateOpportunity(trend);
+
   return trend;
+}
+
+// Fase 9: todo Trend HOT/RISING vira uma Opportunity (score = trendScore,
+// status NEW) — é o sinal de "vale a pena produzir conteúdo sobre isso".
+// STABLE/DECLINING não geram oportunidade nova. Cada Trend só gera uma
+// Opportunity (checa se já existe antes de criar).
+export async function maybeCreateOpportunity(trend: {
+  id: string;
+  userId: string;
+  trendScore: number;
+  classification: string;
+}) {
+  if (trend.classification !== "HOT" && trend.classification !== "RISING") return;
+
+  const existing = await prisma.opportunity.findFirst({ where: { trendId: trend.id } });
+  if (existing) return;
+
+  await prisma.opportunity.create({
+    data: { userId: trend.userId, trendId: trend.id, score: trend.trendScore, status: "NEW" },
+  });
 }
 
 export async function trendRoutes(app: FastifyInstance) {
