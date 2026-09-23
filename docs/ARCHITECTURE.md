@@ -145,6 +145,39 @@ dependências de todos os pacotes.
   curl que a rota autentica, valida `regionCode` e responde 502 de forma
   limpa quando a API key é inválida (em vez de derrubar o processo).
 
+### Pesquisa de tendências — `/trends` (Fase 6)
+
+- Schema ganhou `SearchVideo` (`search_videos`), no mesmo padrão de
+  `TrendVideo`: liga um `Search` aos vídeos que ele retornou, preservando a
+  ordem (`rank`). Sem essa tabela não dava pra saber quais vídeos pertencem
+  a qual busca — gap que passou batido na Fase 2 (só pensei nisso pra
+  `Trend`, não pra `Search`). Migration `20260923040818_add_search_videos`.
+- `POST /api/trends/search` cacheia por `(userId, query, regionCode)`: uma
+  busca repetida nas últimas 6h é servida do banco (`SearchVideo` + join em
+  `Video`), sem gastar cota de novo — o TTL de 6h é um meio-termo (não tão
+  curto que gaste cota a cada refresh, não tão longo que a lista fique
+  visivelmente velha num dia de uso). Sem `query`, busca populares
+  (`getPopularVideos`, 1 unidade); com `query`, usa `searchTrendingVideos`
+  (Fase 5: `search.list` 100 unidades + `videos.list` 1 unidade).
+- `GET /api/trends/searches` devolve o histórico do próprio usuário (só
+  isso — filtro por `userId`), usado pelo frontend pra mostrar buscas
+  recentes como atalho.
+- Limite de rate mais apertado nessa rota (10/min) que o das rotas de auth
+  (20/min) — cada busca com palavra-chave pode custar até 101 unidades de
+  cota (10.000/dia no total), bem mais caro que um POST de login.
+- `viewCount`/`likeCount`/`commentCount` (`BigInt` no Prisma) viram string
+  antes de `reply.send()` — `JSON.stringify` nativo não serializa `BigInt`
+  (lança `TypeError`), e nenhuma rota aqui define `schema.response`
+  (fast-json-stringify, que trataria isso sozinho).
+- **Testado sem credenciais reais do Google**: cache-hit com dados
+  fabricados (preserva `rank`/ordem), isolamento do histórico por usuário,
+  validação de `regionCode` — ver `src/routes/trends.test.ts`. Validado ao
+  vivo no navegador com dados semeados diretamente no banco (sem tocar a
+  API do Google): login → clicar numa busca recente → resultados renderizam
+  com formatação de views (`4.2M`) e duração (`10:12`) corretas; uma busca
+  nova (sem cache) tenta a API de verdade e mostra o erro 502 de forma
+  limpa na UI, como esperado sem `YOUTUBE_API_KEY` real.
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -160,13 +193,14 @@ dependências de todos os pacotes.
 
 - PostgreSQL 16 via `docker-compose.yml` (uso local/dev). Em produção, Postgres
   gerenciado pelo Render (Fase 20).
-- Prisma como ORM. Schema completo (14 tabelas do briefing: `users`,
+- Prisma como ORM. Schema base (14 tabelas do briefing: `users`,
   `youtube_accounts`, `searches`, `videos`, `video_metrics`, `trends`,
   `trend_videos`, `opportunities`, `content_projects`, `scripts`,
   `generated_titles`, `generated_descriptions`, `published_videos`,
   `audit_logs`) implementado na **Fase 2** (`prisma/schema.prisma` +
-  migration `prisma/migrations/20260923020625_init_schema`). `User` em uso
-  desde a Fase 3 (auth) e `YoutubeAccount` desde a Fase 4 (OAuth) — os
+  migration `prisma/migrations/20260923020625_init_schema`); `search_videos`
+  (join `Search` ↔ `Video`) somado na Fase 6. `User` em uso desde a Fase 3
+  (auth) e `YoutubeAccount` desde a Fase 4 (OAuth) — os
   demais modelos ainda não têm rota.
 
 ### Diretrizes seguidas no schema da Fase 2
@@ -223,7 +257,7 @@ dependências de todos os pacotes.
 | 3    | Autenticação (cadastro/login/JWT) + `@fastify/helmet` e `@fastify/rate-limit` ✅                              |
 | 4    | YouTube OAuth (connect/callback/refresh/disconnect) ✅                                                        |
 | 5    | YouTube Data API (`YouTubeService`) ✅                                                                        |
-| 6    | Pesquisa de tendências (`/trends`)                                                                            |
+| 6    | Pesquisa de tendências (`/trends`) ✅                                                                         |
 | 7    | Métricas (velocidade/engajamento/recência/volume)                                                             |
 | 8    | Trend Score (cálculo server-side) + classificação                                                             |
 | 9    | Dashboard (cards, gráfico, top oportunidades)                                                                 |
