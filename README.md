@@ -23,8 +23,8 @@ através da API oficial do YouTube.
 
 ## Requisitos
 
-- Node.js ≥ 20
-- Docker (para rodar o PostgreSQL localmente)
+- Node.js 22 (ver [.nvmrc](.nvmrc) — `nvm use`, se você usa `nvm`)
+- Docker (para rodar o PostgreSQL localmente e para o build de produção)
 
 ## Como rodar localmente
 
@@ -63,6 +63,49 @@ através da API oficial do YouTube.
 
 6. Abra `http://localhost:5173`. O Dashboard deve mostrar "Backend online ·
    banco de dados connected".
+
+## Scripts disponíveis
+
+Rodados na raiz, cobrem os workspaces relevantes (`backend`, `frontend`,
+`services`, `workers`):
+
+| Script                    | O que faz                                               |
+| ------------------------- | ------------------------------------------------------- |
+| `npm run dev:backend`     | Backend em modo watch (`tsx`) — `http://localhost:3000` |
+| `npm run dev:frontend`    | Frontend em modo dev (Vite) — `http://localhost:5173`   |
+| `npm run lint`            | ESLint em todos os workspaces                           |
+| `npm run typecheck`       | `tsc --noEmit` em todos os workspaces                   |
+| `npm run format`          | Formata o repo com Prettier                             |
+| `npm run format:check`    | Só verifica a formatação (usado no CI)                  |
+| `npm test`                | Testes (backend precisa do Postgres rodando — passo 3)  |
+| `npm run build`           | Build de produção (`services` → `backend` → `frontend`) |
+| `npm run prisma:generate` | Gera o Prisma Client a partir de `prisma/schema.prisma` |
+| `npm run prisma:migrate`  | Roda migrations do Prisma em dev                        |
+
+## Docker (build de produção)
+
+O `backend/Dockerfile` builda os três workspaces necessários e sobe uma
+imagem única: o Fastify serve tanto a API (`/api/*`) quanto o build estático
+do frontend (mesma origem — ver [ARCHITECTURE.md](docs/ARCHITECTURE.md) →
+"Deploy").
+
+```bash
+docker build -f backend/Dockerfile -t canalproart-backend .
+
+docker run --rm -p 3000:3000 \
+  -e NODE_ENV=production \
+  -e DATABASE_URL="postgresql://canalproart:canalproart@host.docker.internal:5432/canalproart?schema=public" \
+  -e FRONTEND_URL="http://localhost:3000" \
+  canalproart-backend
+```
+
+Roda como usuário não-root (`node`) e expõe um `HEALTHCHECK` em `/api/health`.
+
+## CI
+
+Todo push/PR para `main` roda `.github/workflows/ci.yml`: install → lint →
+format check → typecheck → test (com Postgres como service container) →
+build.
 
 ## Testes
 
