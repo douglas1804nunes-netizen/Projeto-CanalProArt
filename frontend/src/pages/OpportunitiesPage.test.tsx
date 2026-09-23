@@ -86,4 +86,33 @@ describe("OpportunitiesPage", () => {
       expect(screen.getByText("Nenhuma oportunidade ativa no momento.")).toBeInTheDocument();
     });
   });
+
+  it("cria um projeto de conteúdo a partir da oportunidade", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/opportunities") {
+        return Promise.resolve({ ok: true, json: async () => [sampleOpportunity] });
+      }
+      if (url === "/api/content-projects" && init?.method === "POST") {
+        expect(init.body).toBe(
+          JSON.stringify({ title: sampleOpportunity.topic, opportunityId: sampleOpportunity.id }),
+        );
+        return Promise.resolve({ ok: true, json: async () => ({ id: "project-1" }) });
+      }
+      return Promise.reject(new Error(`fetch não mockado para ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPage();
+
+    const createButton = await screen.findByRole("button", { name: "Criar conteúdo" });
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/content-projects",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
 });

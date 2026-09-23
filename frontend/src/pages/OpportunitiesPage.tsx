@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 type TrendClassification = "RISING" | "HOT" | "STABLE" | "DECLINING";
 
@@ -36,6 +36,9 @@ const CLASSIFICATION_STYLES: Record<TrendClassification, string> = {
 export function OpportunitiesPage() {
   const [state, setState] = useState<ListState>({ status: "loading" });
   const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const [creatingId, setCreatingId] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const loadOpportunities = useCallback(async () => {
     setState({ status: "loading" });
@@ -77,6 +80,29 @@ export function OpportunitiesPage() {
     }
   }
 
+  async function handleCreateContent(opportunity: Opportunity) {
+    setCreatingId(opportunity.id);
+    setCreateError(null);
+    try {
+      const response = await fetch("/api/content-projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title: opportunity.topic, opportunityId: opportunity.id }),
+      });
+      if (!response.ok) {
+        setCreateError(`Não foi possível criar o projeto (HTTP ${response.status}).`);
+        return;
+      }
+      const project = (await response.json()) as { id: string };
+      navigate(`/content/${project.id}`);
+    } catch {
+      setCreateError("Não foi possível conectar ao backend.");
+    } finally {
+      setCreatingId(null);
+    }
+  }
+
   return (
     <div className="max-w-3xl">
       <h1 className="text-2xl font-semibold tracking-tight">Oportunidades</h1>
@@ -89,6 +115,8 @@ export function OpportunitiesPage() {
         {state.status === "loading" && <p className="text-sm text-slate-500">Carregando…</p>}
 
         {state.status === "error" && <p className="text-sm text-red-600">{state.message}</p>}
+
+        {createError && <p className="mb-3 text-sm text-red-600">{createError}</p>}
 
         {state.status === "success" && state.opportunities.length === 0 && (
           <p className="text-sm text-slate-500">Nenhuma oportunidade ativa no momento.</p>
@@ -116,6 +144,16 @@ export function OpportunitiesPage() {
                   >
                     {CLASSIFICATION_LABELS[opportunity.classification]} · {opportunity.score}
                   </span>
+                  {opportunity.status !== "DISMISSED" && (
+                    <button
+                      type="button"
+                      onClick={() => void handleCreateContent(opportunity)}
+                      disabled={creatingId === opportunity.id}
+                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                    >
+                      {creatingId === opportunity.id ? "Criando…" : "Criar conteúdo"}
+                    </button>
+                  )}
                   {opportunity.status === "NEW" ? (
                     <button
                       type="button"

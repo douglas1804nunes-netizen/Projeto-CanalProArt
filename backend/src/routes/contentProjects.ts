@@ -1,0 +1,308 @@
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { createAIProvider } from "@canalproart/services";
+import { env } from "../env.js";
+import { prisma } from "../prisma.js";
+
+// Mesmo custo por chamada dos endpoints de /api/ai/* (Fase 11) — as rotas
+// de geração aqui chamam o mesmo AIProvider, só que persistindo o
+// resultado num ContentProject em vez de devolver solto.
+const AI_RATE_LIMIT = { rateLimit: { max: 10, timeWindow: "1 minute" } };
+
+const createProjectSchema = z.object({
+  title: z.string().trim().min(1, "title é obrigatório").max(200),
+  opportunityId: z.string().trim().min(1).optional(),
+});
+
+const updateProjectSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    status: z.enum(["DRAFT", "IN_PROGRESS", "READY", "PUBLISHED", "ARCHIVED"]).optional(),
+  })
+  .refine((value) => value.title !== undefined || value.status !== undefined, {
+    message: "Informe pelo menos title ou status",
+  });
+
+const generateScriptSchema = z.object({
+  idea: z.string().trim().max(500).optional(),
+  durationSeconds: z.number().int().positive().optional(),
+});
+
+const generateTitlesSchema = z.object({
+  count: z.number().int().min(1).max(10).optional(),
+});
+
+async function loadOwnedProject(userId: string, id: string) {
+  return prisma.contentProject.findFirst({ where: { id, userId } });
+}
+
+export async function contentProjectRoutes(app: FastifyInstance) {
+  const aiProvider = createAIProvider({ provider: env.AI_PROVIDER, apiKey: env.ANTHROPIC_API_KEY });
+
+  app.post("/api/content-projects", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const parsed = createProjectSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .status(400)
+        .send({ error: "Parâmetros inválidos", details: parsed.error.flatten().fieldErrors });
+    }
+    const userId = request.user.sub;
+    const { title, opportunityId } = parsed.data;
+
+    if (opportunityId) {
+      const opportunity = await prisma.opportunity.findFirst({
+        where: { id: opportunityId, userId },
+      });
+      if (!opportunity) {
+        return reply.status(404).send({ error: "Oportunidade não encontrada" });
+      }
+      // Sinaliza que a oportunidade já virou trabalho em andamento — não é
+      // mais "nova" (NEW), mas também não foi publicada ainda (CONVERTED
+      // fica pra quando existir um PublishedVideo de verdade, Fase 17).
+      if (opportunity.status === "NEW") {
+        await prisma.opportunity.update({
+          where: { id: opportunity.id },
+          data: { status: "IN_PROGRESS" },
+        });
+      }
+    }
+
+    const project = await prisma.contentProject.create({
+      data: { userId, title, opportunityId },
+    });
+    return reply.status(201).send(project);
+  });
+
+  app.get("/api/content-projects", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const projects = await prisma.contentProject.findMany({
+      where: { userId: request.user.sub },
+      orderBy: { updatedAt: "desc" },
+    });
+    return reply.send(projects);
+  });
+
+  app.get(
+    "/api/content-projects/:id",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const project = await prisma.contentProject.findFirst({
+        where: { id, userId: request.user.sub },
+        include: {
+          scripts: { orderBy: { version: "desc" } },
+          generatedTitles: { orderBy: { createdAt: "desc" } },
+          generatedDescriptions: { orderBy: { createdAt: "desc" } },
+        },
+      });
+      if (!project) {
+        return reply.status(404).send({ error: "Projeto não encontrado" });
+      }
+      return reply.send(project);
+    },
+  );
+
+  app.patch(
+    "/api/content-projects/:id",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const parsed = updateProjectSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ error: "Parâmetros inválidos", details: parsed.error.flatten().fieldErrors });
+      }
+
+      const project = await loadOwnedProject(request.user.sub, id);
+      if (!project) {
+        return reply.status(404).send({ error: "Projeto não encontrado" });
+      }
+
+      const updated = await prisma.contentProject.update({ where: { id }, data: parsed.data });
+      return reply.send(updated);
+    },
+  );
+
+  app.post(
+    "/api/content-projects/:id/generate-script",
+    { preHandler: [app.authenticate], config: AI_RATE_LIMIT },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const parsed = generateScriptSchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ error: "Parâmetros inválidos", details: parsed.error.flatten().fieldErrors });
+      }
+
+      const project = await loadOwnedProject(request.user.sub, id);
+      if (!project) {
+        return reply.status(404).send({ error: "Projeto não encontrado" });
+      }
+
+      try {
+        const content = await aiProvider.generateScript({
+          idea: parsed.data.idea ?? project.title,
+          durationSeconds: parsed.data.durationSeconds,
+        });
+        const lastVersion = await prisma.script.findFirst({
+          where: { contentProjectId: id },
+          orderBy: { version: "desc" },
+        });
+        const script = await prisma.script.create({
+          data: {
+            contentProjectId: id,
+            content,
+            version: (lastVersion?.version ?? 0) + 1,
+            aiProvider: env.AI_PROVIDER,
+          },
+        });
+        return reply.status(201).send(script);
+      } catch (error) {
+        app.log.error({ err: error }, "Falha ao gerar roteiro com IA");
+        return reply.status(502).send({ error: "Falha ao gerar roteiro com IA" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/content-projects/:id/generate-titles",
+    { preHandler: [app.authenticate], config: AI_RATE_LIMIT },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const parsed = generateTitlesSchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ error: "Parâmetros inválidos", details: parsed.error.flatten().fieldErrors });
+      }
+
+      const project = await loadOwnedProject(request.user.sub, id);
+      if (!project) {
+        return reply.status(404).send({ error: "Projeto não encontrado" });
+      }
+
+      try {
+        const latestScript = await prisma.script.findFirst({
+          where: { contentProjectId: id },
+          orderBy: { version: "desc" },
+        });
+        const titles = await aiProvider.generateTitles({
+          topic: project.title,
+          script: latestScript?.content,
+          count: parsed.data.count,
+        });
+        const created = await prisma.$transaction(
+          titles.map((title) =>
+            prisma.generatedTitle.create({ data: { contentProjectId: id, title } }),
+          ),
+        );
+        return reply.status(201).send(created);
+      } catch (error) {
+        app.log.error({ err: error }, "Falha ao gerar títulos com IA");
+        return reply.status(502).send({ error: "Falha ao gerar títulos com IA" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/content-projects/:id/generate-description",
+    { preHandler: [app.authenticate], config: AI_RATE_LIMIT },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      const project = await loadOwnedProject(request.user.sub, id);
+      if (!project) {
+        return reply.status(404).send({ error: "Projeto não encontrado" });
+      }
+
+      const latestScript = await prisma.script.findFirst({
+        where: { contentProjectId: id },
+        orderBy: { version: "desc" },
+      });
+      if (!latestScript) {
+        return reply.status(400).send({ error: "Gere um roteiro antes de gerar a descrição" });
+      }
+
+      const selectedTitle = await prisma.generatedTitle.findFirst({
+        where: { contentProjectId: id, selected: true },
+        orderBy: { createdAt: "desc" },
+      });
+
+      try {
+        const description = await aiProvider.generateDescription({
+          title: selectedTitle?.title ?? project.title,
+          script: latestScript.content,
+        });
+        const created = await prisma.generatedDescription.create({
+          data: { contentProjectId: id, description },
+        });
+        return reply.status(201).send(created);
+      } catch (error) {
+        app.log.error({ err: error }, "Falha ao gerar descrição com IA");
+        return reply.status(502).send({ error: "Falha ao gerar descrição com IA" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/content-projects/:id/titles/:titleId/select",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { id, titleId } = request.params as { id: string; titleId: string };
+
+      const project = await loadOwnedProject(request.user.sub, id);
+      if (!project) {
+        return reply.status(404).send({ error: "Projeto não encontrado" });
+      }
+      const title = await prisma.generatedTitle.findFirst({
+        where: { id: titleId, contentProjectId: id },
+      });
+      if (!title) {
+        return reply.status(404).send({ error: "Título não encontrado" });
+      }
+
+      await prisma.$transaction([
+        prisma.generatedTitle.updateMany({
+          where: { contentProjectId: id },
+          data: { selected: false },
+        }),
+        prisma.generatedTitle.update({ where: { id: titleId }, data: { selected: true } }),
+      ]);
+
+      return reply.send({ id: titleId, selected: true });
+    },
+  );
+
+  app.post(
+    "/api/content-projects/:id/descriptions/:descriptionId/select",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { id, descriptionId } = request.params as { id: string; descriptionId: string };
+
+      const project = await loadOwnedProject(request.user.sub, id);
+      if (!project) {
+        return reply.status(404).send({ error: "Projeto não encontrado" });
+      }
+      const description = await prisma.generatedDescription.findFirst({
+        where: { id: descriptionId, contentProjectId: id },
+      });
+      if (!description) {
+        return reply.status(404).send({ error: "Descrição não encontrada" });
+      }
+
+      await prisma.$transaction([
+        prisma.generatedDescription.updateMany({
+          where: { contentProjectId: id },
+          data: { selected: false },
+        }),
+        prisma.generatedDescription.update({
+          where: { id: descriptionId },
+          data: { selected: true },
+        }),
+      ]);
+
+      return reply.send({ id: descriptionId, selected: true });
+    },
+  );
+}

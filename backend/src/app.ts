@@ -16,6 +16,7 @@ import { trendRoutes } from "./routes/trends.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { opportunityRoutes } from "./routes/opportunities.js";
 import { aiRoutes } from "./routes/ai.js";
+import { contentProjectRoutes } from "./routes/contentProjects.js";
 
 // O callback OAuth do YouTube (Fase 4) recebe "code"/"state" na query string,
 // que o serializer padrão do Fastify logaria em texto puro em "req.url" (pino
@@ -111,6 +112,7 @@ export function buildApp() {
   app.register(dashboardRoutes);
   app.register(opportunityRoutes);
   app.register(aiRoutes);
+  app.register(contentProjectRoutes);
 
   // Produção: o backend serve o build do frontend (mesma origem, sem CORS
   // entre front e back). Em dev, o Vite roda separado e faz proxy de /api

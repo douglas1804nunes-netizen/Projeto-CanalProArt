@@ -1,0 +1,357 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildApp } from "../app.js";
+import { prisma } from "../prisma.js";
+
+// Fase 12 — assim como a Fase 11, a chamada de verdade ao AIProvider não dá
+// pra testar sem uma ANTHROPIC_API_KEY real. Aqui cobre o que é nosso:
+// persistência (CRUD do projeto, seleção de título/descrição, transição de
+// status da Opportunity), autenticação, validação e isolamento por usuário.
+//
+// POST /api/auth/register tem rate limit de 20/min (Fase 3, contra força
+// bruta) — esse arquivo reaproveita um único "mainUser" pra todo teste que
+// não precisa de isolamento entre dois usuários, e só registra pares novos
+// quando o próprio teste é sobre isolamento. Sem isso, o número de testes
+// aqui estoura o limite e os últimos registros falham com 429.
+describe("Rotas de content projects (Fase 12)", () => {
+  const app = buildApp();
+  const createdEmails: string[] = [];
+  const createdProjectIds: string[] = [];
+  const createdTrendIds: string[] = [];
+  const createdOpportunityIds: string[] = [];
+  let mainToken: string;
+  let mainUserId: string;
+
+  beforeAll(async () => {
+    const main = await registerUser("main");
+    mainToken = main.token;
+    mainUserId = main.userId;
+  });
+
+  afterAll(async () => {
+    await prisma.generatedDescription.deleteMany({
+      where: { contentProjectId: { in: createdProjectIds } },
+    });
+    await prisma.generatedTitle.deleteMany({
+      where: { contentProjectId: { in: createdProjectIds } },
+    });
+    await prisma.script.deleteMany({ where: { contentProjectId: { in: createdProjectIds } } });
+    await prisma.contentProject.deleteMany({ where: { id: { in: createdProjectIds } } });
+    await prisma.opportunity.deleteMany({ where: { id: { in: createdOpportunityIds } } });
+    await prisma.trend.deleteMany({ where: { id: { in: createdTrendIds } } });
+    await prisma.user.deleteMany({ where: { email: { in: createdEmails } } });
+    await app.close();
+  });
+
+  async function registerUser(label: string) {
+    const email = `content-project-test-${label}-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
+    createdEmails.push(email);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: { email, password: "senha-forte-123", name: "Teste" },
+    });
+
+    const token = response.cookies.find((c) => c.name === "token")?.value ?? "";
+    const userId = (response.json() as { id: string }).id;
+    return { token, userId };
+  }
+
+  async function seedOpportunity(userId: string, status: "NEW" | "DISMISSED" = "NEW") {
+    const trend = await prisma.trend.create({
+      data: {
+        userId,
+        topic: `topico-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        regionCode: "BR",
+        trendScore: 80,
+        classification: "HOT",
+        fetchedAt: new Date(),
+      },
+    });
+    createdTrendIds.push(trend.id);
+
+    const opportunity = await prisma.opportunity.create({
+      data: { userId, trendId: trend.id, score: 80, status },
+    });
+    createdOpportunityIds.push(opportunity.id);
+    return opportunity;
+  }
+
+  async function createProject(token: string, title = "Meu projeto") {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/content-projects",
+      cookies: { token },
+      payload: { title },
+    });
+    const project = response.json() as { id: string };
+    createdProjectIds.push(project.id);
+    return project;
+  }
+
+  it("POST /api/content-projects exige autenticação", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/content-projects",
+      payload: { title: "Teste" },
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("POST /api/content-projects rejeita título vazio", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/content-projects",
+      cookies: { token: mainToken },
+      payload: { title: "" },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("POST /api/content-projects cria um projeto sem oportunidade", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/content-projects",
+      cookies: { token: mainToken },
+      payload: { title: "Vídeo sobre gatos" },
+    });
+    expect(response.statusCode).toBe(201);
+    const body = response.json() as { id: string; title: string; status: string };
+    createdProjectIds.push(body.id);
+    expect(body.title).toBe("Vídeo sobre gatos");
+    expect(body.status).toBe("DRAFT");
+  });
+
+  it("POST /api/content-projects devolve 404 pra opportunityId inexistente ou de outro usuário", async () => {
+    const { userId: userIdB } = await registerUser("opp-other-b");
+    const opportunityB = await seedOpportunity(userIdB);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/content-projects",
+      cookies: { token: mainToken },
+      payload: { title: "Teste", opportunityId: opportunityB.id },
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("POST /api/content-projects vincula a oportunidade e marca como IN_PROGRESS", async () => {
+    const opportunity = await seedOpportunity(mainUserId, "NEW");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/content-projects",
+      cookies: { token: mainToken },
+      payload: { title: "Vídeo sobre a tendência", opportunityId: opportunity.id },
+    });
+    expect(response.statusCode).toBe(201);
+    const project = response.json() as { id: string; opportunityId: string };
+    createdProjectIds.push(project.id);
+    expect(project.opportunityId).toBe(opportunity.id);
+
+    const updatedOpportunity = await prisma.opportunity.findUnique({
+      where: { id: opportunity.id },
+    });
+    expect(updatedOpportunity?.status).toBe("IN_PROGRESS");
+  });
+
+  it("GET /api/content-projects exige autenticação", async () => {
+    const response = await app.inject({ method: "GET", url: "/api/content-projects" });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("GET /api/content-projects devolve só os projetos do próprio usuário", async () => {
+    const { token: tokenB } = await registerUser("list-b");
+    const projectA = await createProject(mainToken, "Projeto A");
+
+    const responseA = await app.inject({
+      method: "GET",
+      url: "/api/content-projects",
+      cookies: { token: mainToken },
+    });
+    const responseB = await app.inject({
+      method: "GET",
+      url: "/api/content-projects",
+      cookies: { token: tokenB },
+    });
+
+    const projectsA = responseA.json() as Array<{ id: string }>;
+    const projectsB = responseB.json() as Array<{ id: string }>;
+    expect(projectsA.some((p) => p.id === projectA.id)).toBe(true);
+    expect(projectsB.some((p) => p.id === projectA.id)).toBe(false);
+  });
+
+  it("GET /api/content-projects/:id devolve 404 pra projeto de outro usuário", async () => {
+    const { token: tokenB } = await registerUser("detail-b");
+    const project = await createProject(mainToken);
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/content-projects/${project.id}`,
+      cookies: { token: tokenB },
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("GET /api/content-projects/:id devolve scripts/títulos/descrições", async () => {
+    const project = await createProject(mainToken, "Projeto completo");
+
+    const script = await prisma.script.create({
+      data: {
+        contentProjectId: project.id,
+        content: "roteiro",
+        version: 1,
+        aiProvider: "anthropic",
+      },
+    });
+    const title = await prisma.generatedTitle.create({
+      data: { contentProjectId: project.id, title: "Título gerado" },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/content-projects/${project.id}`,
+      cookies: { token: mainToken },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      scripts: Array<{ id: string }>;
+      generatedTitles: Array<{ id: string }>;
+    };
+    expect(body.scripts.map((s) => s.id)).toContain(script.id);
+    expect(body.generatedTitles.map((t) => t.id)).toContain(title.id);
+  });
+
+  it("PATCH /api/content-projects/:id exige pelo menos title ou status", async () => {
+    const project = await createProject(mainToken);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/api/content-projects/${project.id}`,
+      cookies: { token: mainToken },
+      payload: {},
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("PATCH /api/content-projects/:id devolve 404 pra projeto de outro usuário", async () => {
+    const { token: tokenB } = await registerUser("patch-other-b");
+    const project = await createProject(mainToken);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/api/content-projects/${project.id}`,
+      cookies: { token: tokenB },
+      payload: { status: "READY" },
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("PATCH /api/content-projects/:id atualiza status e título", async () => {
+    const project = await createProject(mainToken, "Título original");
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/api/content-projects/${project.id}`,
+      cookies: { token: mainToken },
+      payload: { status: "READY", title: "Título atualizado" },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as { status: string; title: string };
+    expect(body.status).toBe("READY");
+    expect(body.title).toBe("Título atualizado");
+  });
+
+  it("POST .../generate-script exige autenticação", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/content-projects/algum-id/generate-script",
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("POST .../generate-script devolve 404 pra projeto de outro usuário", async () => {
+    const { token: tokenB } = await registerUser("script-other-b");
+    const project = await createProject(mainToken);
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/content-projects/${project.id}/generate-script`,
+      cookies: { token: tokenB },
+      payload: {},
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("POST .../generate-description devolve 400 se ainda não existe roteiro", async () => {
+    const project = await createProject(mainToken);
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/content-projects/${project.id}/generate-description`,
+      cookies: { token: mainToken },
+      payload: {},
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("POST .../titles/:titleId/select marca um título e desmarca os outros", async () => {
+    const project = await createProject(mainToken);
+    const titleA = await prisma.generatedTitle.create({
+      data: { contentProjectId: project.id, title: "A", selected: true },
+    });
+    const titleB = await prisma.generatedTitle.create({
+      data: { contentProjectId: project.id, title: "B" },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/content-projects/${project.id}/titles/${titleB.id}/select`,
+      cookies: { token: mainToken },
+    });
+    expect(response.statusCode).toBe(200);
+
+    const refreshedA = await prisma.generatedTitle.findUnique({ where: { id: titleA.id } });
+    const refreshedB = await prisma.generatedTitle.findUnique({ where: { id: titleB.id } });
+    expect(refreshedA?.selected).toBe(false);
+    expect(refreshedB?.selected).toBe(true);
+  });
+
+  it("POST .../titles/:titleId/select devolve 404 pra título de outro projeto", async () => {
+    const { token: tokenB } = await registerUser("select-cross-b");
+    const projectA = await createProject(mainToken);
+    const projectB = await createProject(tokenB);
+    const titleFromA = await prisma.generatedTitle.create({
+      data: { contentProjectId: projectA.id, title: "A" },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/content-projects/${projectB.id}/titles/${titleFromA.id}/select`,
+      cookies: { token: tokenB },
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("POST .../descriptions/:descriptionId/select marca uma descrição e desmarca as outras", async () => {
+    const project = await createProject(mainToken);
+    const descA = await prisma.generatedDescription.create({
+      data: { contentProjectId: project.id, description: "A", selected: true },
+    });
+    const descB = await prisma.generatedDescription.create({
+      data: { contentProjectId: project.id, description: "B" },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/content-projects/${project.id}/descriptions/${descB.id}/select`,
+      cookies: { token: mainToken },
+    });
+    expect(response.statusCode).toBe(200);
+
+    const refreshedA = await prisma.generatedDescription.findUnique({ where: { id: descA.id } });
+    const refreshedB = await prisma.generatedDescription.findUnique({ where: { id: descB.id } });
+    expect(refreshedA?.selected).toBe(false);
+    expect(refreshedB?.selected).toBe(true);
+  });
+});

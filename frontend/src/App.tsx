@@ -2,6 +2,8 @@ import { Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireAuth } from "./auth/RequireAuth";
 import { AppLayout } from "./layout/AppLayout";
+import { ContentProjectDetailPage } from "./pages/ContentProjectDetailPage";
+import { ContentProjectsPage } from "./pages/ContentProjectsPage";
 import { Dashboard } from "./pages/Dashboard";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -25,10 +27,8 @@ export default function App() {
             <Route path="/trends" element={<TrendsPage />} />
             <Route path="/trends/:id" element={<TrendAnalysisPage />} />
             <Route path="/opportunities" element={<OpportunitiesPage />} />
-            <Route
-              path="/content"
-              element={<PlaceholderPage title="Conteúdos" phase="Fase 12" />}
-            />
+            <Route path="/content" element={<ContentProjectsPage />} />
+            <Route path="/content/:id" element={<ContentProjectDetailPage />} />
             <Route path="/videos" element={<PlaceholderPage title="Vídeos" phase="Fase 17" />} />
             <Route path="/youtube" element={<YoutubePage />} />
             <Route
