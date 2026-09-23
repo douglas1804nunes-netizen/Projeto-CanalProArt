@@ -1,10 +1,15 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
+import jwt from "@fastify/jwt";
+import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
 import { env, rootDir } from "./env.js";
 import { prisma } from "./prisma.js";
 import { healthRoutes } from "./routes/health.js";
+import { authRoutes } from "./routes/auth.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -36,6 +41,30 @@ export function buildApp() {
 
   app.register(cors, {
     origin: env.FRONTEND_URL,
+    credentials: true,
+  });
+
+  app.register(helmet);
+  app.register(rateLimit, {
+    max: 100,
+    timeWindow: "1 minute",
+  });
+
+  app.register(cookie);
+  app.register(jwt, {
+    secret: env.JWT_SECRET,
+    cookie: {
+      cookieName: "token",
+      signed: false,
+    },
+  });
+
+  app.decorate("authenticate", async (request, reply) => {
+    try {
+      await request.jwtVerify();
+    } catch {
+      reply.status(401).send({ error: "Não autenticado" });
+    }
   });
 
   app.addHook("onClose", async () => {
@@ -43,6 +72,7 @@ export function buildApp() {
   });
 
   app.register(healthRoutes);
+  app.register(authRoutes);
 
   // Produção: o backend serve o build do frontend (mesma origem, sem CORS
   // entre front e back). Em dev, o Vite roda separado e faz proxy de /api

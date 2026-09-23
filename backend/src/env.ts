@@ -43,6 +43,7 @@ const envSchema = z
       emptyToUndefined,
       z.string().url("BACKEND_URL deve ser uma URL válida (ex.: http://localhost:3000)").optional(),
     ),
+    JWT_SECRET: z.string().min(32, "JWT_SECRET precisa ter pelo menos 32 caracteres"),
     // Opcional até a Fase 4 (criptografia dos tokens OAuth do YouTube). Quando
     // definida, já valida o formato esperado para AES-256-GCM.
     TOKEN_ENCRYPTION_KEY: z.preprocess(
