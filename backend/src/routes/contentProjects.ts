@@ -125,6 +125,27 @@ export async function contentProjectRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Projeto não encontrado" });
       }
 
+      // Fase 14: "Toda publicação exige um vídeo enviado pelo próprio
+      // usuário com direitos declarados" (README) — reforçado aqui, não só
+      // documentado. DRAFT/IN_PROGRESS/ARCHIVED não exigem nada; PUBLISHED
+      // só existe de verdade a partir da Fase 16/17 (não bloqueado aqui
+      // porque nada ainda seta esse status).
+      if (parsed.data.status === "READY") {
+        const mediaUpload = await prisma.mediaUpload.findUnique({
+          where: { contentProjectId: id },
+        });
+        if (!mediaUpload) {
+          return reply
+            .status(400)
+            .send({ error: "Envie um vídeo antes de marcar o projeto como pronto" });
+        }
+        if (!mediaUpload.rightsStatus) {
+          return reply
+            .status(400)
+            .send({ error: "Declare os direitos do vídeo antes de marcar o projeto como pronto" });
+        }
+      }
+
       const updated = await prisma.contentProject.update({ where: { id }, data: parsed.data });
       return reply.send(updated);
     },

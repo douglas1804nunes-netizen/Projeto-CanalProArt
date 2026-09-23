@@ -4,8 +4,16 @@ import { mkdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { pipeline } from "node:stream/promises";
+import { z } from "zod";
 import { rootDir } from "../env.js";
 import { prisma } from "../prisma.js";
+
+const RIGHTS_STATUS_VALUES = ["ORIGINAL", "AUTHORIZED", "LICENSED", "PUBLIC_DOMAIN"] as const;
+
+const rightsSchema = z.object({
+  rightsStatus: z.enum(RIGHTS_STATUS_VALUES),
+  containsSyntheticMedia: z.boolean(),
+});
 
 // Fase 13: armazenamento em disco local (backend/uploads/, gitignored) —
 // decisão deliberada pra não depender de uma conta de object storage que o
@@ -84,6 +92,9 @@ export async function mediaRoutes(app: FastifyInstance) {
 
       const { size } = await stat(absolutePath);
 
+      // Um novo arquivo é conteúdo diferente do que foi declarado antes —
+      // reseta a declaração de direitos (Fase 14) em vez de manter a
+      // declaração antiga colada num arquivo novo.
       const mediaUpload = await prisma.mediaUpload.upsert({
         where: { contentProjectId: id },
         create: {
@@ -98,6 +109,8 @@ export async function mediaRoutes(app: FastifyInstance) {
           filePath: relativePath,
           mimeType: file.mimetype,
           sizeBytes: BigInt(size),
+          rightsStatus: null,
+          containsSyntheticMedia: false,
         },
       });
 
@@ -106,6 +119,8 @@ export async function mediaRoutes(app: FastifyInstance) {
         fileName: mediaUpload.fileName,
         mimeType: mediaUpload.mimeType,
         sizeBytes: mediaUpload.sizeBytes.toString(),
+        rightsStatus: mediaUpload.rightsStatus,
+        containsSyntheticMedia: mediaUpload.containsSyntheticMedia,
         createdAt: mediaUpload.createdAt,
       });
     },
@@ -132,6 +147,42 @@ export async function mediaRoutes(app: FastifyInstance) {
       await prisma.mediaUpload.delete({ where: { contentProjectId: id } });
 
       return reply.status(204).send();
+    },
+  );
+
+  // Fase 14: declaração de direitos do vídeo já enviado — feita como um
+  // passo separado do upload (ver comentário no schema, MediaUpload).
+  app.patch(
+    "/api/content-projects/:id/media/rights",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const parsed = rightsSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ error: "Parâmetros inválidos", details: parsed.error.flatten().fieldErrors });
+      }
+
+      const project = await loadOwnedProject(request.user.sub, id);
+      if (!project) {
+        return reply.status(404).send({ error: "Projeto não encontrado" });
+      }
+
+      const existing = await prisma.mediaUpload.findUnique({ where: { contentProjectId: id } });
+      if (!existing) {
+        return reply.status(404).send({ error: "Envie um vídeo antes de declarar os direitos" });
+      }
+
+      const mediaUpload = await prisma.mediaUpload.update({
+        where: { contentProjectId: id },
+        data: parsed.data,
+      });
+
+      return reply.send({
+        rightsStatus: mediaUpload.rightsStatus,
+        containsSyntheticMedia: mediaUpload.containsSyntheticMedia,
+      });
     },
   );
 

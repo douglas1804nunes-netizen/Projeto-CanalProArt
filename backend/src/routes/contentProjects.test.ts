@@ -250,15 +250,17 @@ describe("Rotas de content projects (Fase 12)", () => {
   it("PATCH /api/content-projects/:id atualiza status e título", async () => {
     const project = await createProject(mainToken, "Título original");
 
+    // IN_PROGRESS não exige vídeo/direitos declarados (ao contrário de
+    // READY, ver Fase 14) — usado aqui só pra testar a atualização em si.
     const response = await app.inject({
       method: "PATCH",
       url: `/api/content-projects/${project.id}`,
       cookies: { token: mainToken },
-      payload: { status: "READY", title: "Título atualizado" },
+      payload: { status: "IN_PROGRESS", title: "Título atualizado" },
     });
     expect(response.statusCode).toBe(200);
     const body = response.json() as { status: string; title: string };
-    expect(body.status).toBe("READY");
+    expect(body.status).toBe("IN_PROGRESS");
     expect(body.title).toBe("Título atualizado");
   });
 

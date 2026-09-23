@@ -26,11 +26,12 @@ function buildMultipartBody(params: {
   ].join("\r\n");
 }
 
-// Fase 13 — upload de mídia em disco local (ver docs/ARCHITECTURE.md).
-// Testa o CRUD completo (upload/substituição/download/remoção) com um
-// arquivo fabricado pequeno — não precisa de credencial nenhuma, ao
-// contrário das Fases 5/11 (rede externa).
-describe("Rotas de mídia (Fase 13)", () => {
+// Fases 13/14 — upload de mídia em disco local + declaração de direitos
+// (ver docs/ARCHITECTURE.md). Testa o CRUD completo (upload/substituição/
+// download/remoção/direitos) com um arquivo fabricado pequeno — não
+// precisa de credencial nenhuma, ao contrário das Fases 5/11 (rede
+// externa).
+describe("Rotas de mídia (Fases 13-14)", () => {
   const app = buildApp();
   const createdEmails: string[] = [];
   const createdProjectIds: string[] = [];
@@ -223,5 +224,119 @@ describe("Rotas de mídia (Fase 13)", () => {
       cookies: { token: mainToken },
     });
     expect(response.statusCode).toBe(404);
+  });
+
+  async function uploadVideo(token: string, projectId: string, fileName: string, content: string) {
+    const boundary = `----test-boundary-${Math.random().toString(36).slice(2)}`;
+    return app.inject({
+      method: "POST",
+      url: `/api/content-projects/${projectId}/media`,
+      cookies: { token },
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload: buildMultipartBody({
+        boundary,
+        fieldName: "file",
+        fileName,
+        contentType: "video/mp4",
+        content,
+      }),
+    });
+  }
+
+  it("PATCH .../media/rights exige autenticação", async () => {
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/content-projects/algum-id/media/rights",
+      payload: { rightsStatus: "ORIGINAL", containsSyntheticMedia: false },
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("PATCH .../media/rights devolve 404 se ainda não existe upload", async () => {
+    const project = await createProject(mainToken);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/api/content-projects/${project.id}/media/rights`,
+      cookies: { token: mainToken },
+      payload: { rightsStatus: "ORIGINAL", containsSyntheticMedia: false },
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("PATCH .../media/rights rejeita rightsStatus inválido", async () => {
+    const project = await createProject(mainToken);
+    await uploadVideo(mainToken, project.id, "video.mp4", "conteudo");
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/api/content-projects/${project.id}/media/rights`,
+      cookies: { token: mainToken },
+      payload: { rightsStatus: "ROUBADO", containsSyntheticMedia: false },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("PATCH .../media/rights salva a declaração e libera o status READY", async () => {
+    const project = await createProject(mainToken);
+    await uploadVideo(mainToken, project.id, "video.mp4", "conteudo");
+
+    const readyBeforeRights = await app.inject({
+      method: "PATCH",
+      url: `/api/content-projects/${project.id}`,
+      cookies: { token: mainToken },
+      payload: { status: "READY" },
+    });
+    expect(readyBeforeRights.statusCode).toBe(400);
+
+    const rightsResponse = await app.inject({
+      method: "PATCH",
+      url: `/api/content-projects/${project.id}/media/rights`,
+      cookies: { token: mainToken },
+      payload: { rightsStatus: "ORIGINAL", containsSyntheticMedia: true },
+    });
+    expect(rightsResponse.statusCode).toBe(200);
+    expect(rightsResponse.json()).toEqual({
+      rightsStatus: "ORIGINAL",
+      containsSyntheticMedia: true,
+    });
+
+    const readyAfterRights = await app.inject({
+      method: "PATCH",
+      url: `/api/content-projects/${project.id}`,
+      cookies: { token: mainToken },
+      payload: { status: "READY" },
+    });
+    expect(readyAfterRights.statusCode).toBe(200);
+  });
+
+  it("um novo upload reseta a declaração de direitos do upload anterior", async () => {
+    const project = await createProject(mainToken);
+    await uploadVideo(mainToken, project.id, "video-v1.mp4", "conteudo-v1");
+    await app.inject({
+      method: "PATCH",
+      url: `/api/content-projects/${project.id}/media/rights`,
+      cookies: { token: mainToken },
+      payload: { rightsStatus: "ORIGINAL", containsSyntheticMedia: false },
+    });
+
+    await uploadVideo(mainToken, project.id, "video-v2.mp4", "conteudo-v2");
+
+    const mediaUpload = await prisma.mediaUpload.findUnique({
+      where: { contentProjectId: project.id },
+    });
+    expect(mediaUpload?.rightsStatus).toBeNull();
+  });
+
+  it("PATCH /api/content-projects/:id devolve 400 pra READY sem vídeo enviado", async () => {
+    const project = await createProject(mainToken);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/api/content-projects/${project.id}`,
+      cookies: { token: mainToken },
+      payload: { status: "READY" },
+    });
+    expect(response.statusCode).toBe(400);
   });
 });

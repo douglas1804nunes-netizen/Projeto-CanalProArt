@@ -107,6 +107,8 @@ describe("ContentProjectDetailPage", () => {
         fileName: "video.mp4",
         mimeType: "video/mp4",
         sizeBytes: "2500000",
+        rightsStatus: null,
+        containsSyntheticMedia: false,
       },
     };
     vi.stubGlobal(
@@ -120,6 +122,74 @@ describe("ContentProjectDetailPage", () => {
     expect(screen.getByText(/2\.5MB/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Substituir vídeo" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remover" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salvar declaração" })).toBeInTheDocument();
+  });
+
+  it("mostra a declaração de direitos já salva", async () => {
+    const projectWithRights = {
+      ...emptyProject,
+      mediaUpload: {
+        id: "media-1",
+        fileName: "video.mp4",
+        mimeType: "video/mp4",
+        sizeBytes: "2500000",
+        rightsStatus: "ORIGINAL" as const,
+        containsSyntheticMedia: true,
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => projectWithRights }),
+    );
+
+    renderPage();
+
+    expect(await screen.findByText(/Declarado: Original/)).toBeInTheDocument();
+    expect(screen.getByText(/contém mídia sintética/)).toBeInTheDocument();
+  });
+
+  it("salva a declaração de direitos", async () => {
+    const projectWithMedia = {
+      ...emptyProject,
+      mediaUpload: {
+        id: "media-1",
+        fileName: "video.mp4",
+        mimeType: "video/mp4",
+        sizeBytes: "2500000",
+        rightsStatus: null,
+        containsSyntheticMedia: false,
+      },
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/content-projects/project-1" && !init?.method) {
+        return Promise.resolve({ ok: true, json: async () => projectWithMedia });
+      }
+      if (url === "/api/content-projects/project-1/media/rights" && init?.method === "PATCH") {
+        expect(init.body).toBe(
+          JSON.stringify({ rightsStatus: "ORIGINAL", containsSyntheticMedia: false }),
+        );
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ rightsStatus: "ORIGINAL", containsSyntheticMedia: false }),
+        });
+      }
+      return Promise.reject(new Error(`fetch não mockado para ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPage();
+
+    const select = await screen.findByRole("combobox", { name: "Status de direitos" });
+    fireEvent.change(select, { target: { value: "ORIGINAL" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar declaração" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/content-projects/project-1/media/rights",
+        expect.objectContaining({ method: "PATCH" }),
+      );
+    });
   });
 
   it("remove o vídeo enviado", async () => {
@@ -130,6 +200,8 @@ describe("ContentProjectDetailPage", () => {
         fileName: "video.mp4",
         mimeType: "video/mp4",
         sizeBytes: "2500000",
+        rightsStatus: null,
+        containsSyntheticMedia: false,
       },
     };
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {

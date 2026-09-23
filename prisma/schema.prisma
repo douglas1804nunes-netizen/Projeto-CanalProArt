@@ -313,18 +313,24 @@ model GeneratedDescription {
 // ContentProject porque um projeto só precisa do upload mais recente; um
 // novo upload substitui o anterior (apaga o arquivo antigo do disco) em vez
 // de acumular versões, diferente de Script (onde cada tentativa de IA vale
-// guardar). rightsStatus/containsSyntheticMedia entram na Fase 14
-// (Validação de direitos) — não faz sentido declarar isso antes de existir
-// um arquivo de verdade pra validar.
+// guardar).
 model MediaUpload {
-  id               String   @id @default(cuid())
-  contentProjectId String   @unique
-  fileName         String
-  filePath         String
-  mimeType         String
-  sizeBytes        BigInt
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                     String        @id @default(cuid())
+  contentProjectId       String        @unique
+  fileName               String
+  filePath               String
+  mimeType               String
+  sizeBytes              BigInt
+  // Fase 14: declaração de direitos do usuário — nullable porque o upload
+  // (Fase 13) e a declaração (Fase 14) são passos distintos; `null` = ainda
+  // não declarado. O README já documenta a regra que isso existe pra
+  // cumprir: "Toda publicação exige um vídeo enviado pelo próprio usuário
+  // com direitos declarados" — reforçada em código pelo guard em
+  // contentProjectRoutes (não deixa marcar o projeto como READY sem isso).
+  rightsStatus           RightsStatus?
+  containsSyntheticMedia Boolean       @default(false)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
   contentProject ContentProject @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
 

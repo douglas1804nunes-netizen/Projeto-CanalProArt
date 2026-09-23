@@ -22,11 +22,15 @@ type GeneratedDescription = {
   selected: boolean;
 };
 
+type RightsStatus = "ORIGINAL" | "AUTHORIZED" | "LICENSED" | "PUBLIC_DOMAIN";
+
 type MediaUpload = {
   id: string;
   fileName: string;
   mimeType: string;
   sizeBytes: string;
+  rightsStatus: RightsStatus | null;
+  containsSyntheticMedia: boolean;
 };
 
 type ContentProjectDetail = {
@@ -70,12 +74,28 @@ const STATUS_OPTIONS: ContentProjectStatus[] = [
   "ARCHIVED",
 ];
 
+const RIGHTS_STATUS_LABELS: Record<RightsStatus, string> = {
+  ORIGINAL: "Original (produzido por mim)",
+  AUTHORIZED: "Autorizado pelo titular",
+  LICENSED: "Licenciado",
+  PUBLIC_DOMAIN: "Domínio público",
+};
+
+const RIGHTS_STATUS_OPTIONS: RightsStatus[] = [
+  "ORIGINAL",
+  "AUTHORIZED",
+  "LICENSED",
+  "PUBLIC_DOMAIN",
+];
+
 export function ContentProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [state, setState] = useState<DetailState>({ status: "loading" });
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rightsStatusRef = useRef<HTMLSelectElement>(null);
+  const syntheticMediaRef = useRef<HTMLInputElement>(null);
 
   const loadProject = useCallback(async () => {
     if (!id) return;
@@ -206,6 +226,21 @@ export function ContentProjectDetailPage() {
     );
   }
 
+  async function handleSaveRights() {
+    const rightsStatus = rightsStatusRef.current?.value as RightsStatus | undefined;
+    if (!rightsStatus) return;
+    const containsSyntheticMedia = syntheticMediaRef.current?.checked ?? false;
+
+    await runAction("rights", () =>
+      fetch(`/api/content-projects/${id}/media/rights`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ rightsStatus, containsSyntheticMedia }),
+      }),
+    );
+  }
+
   return (
     <div className="max-w-4xl">
       <Link to="/content" className="text-sm text-slate-500 hover:text-slate-700">
@@ -262,6 +297,53 @@ export function ContentProjectDetailPage() {
                   >
                     {busy === "media-remove" ? "Removendo…" : "Remover"}
                   </button>
+                </div>
+
+                <div
+                  key={`${state.project.mediaUpload.fileName}-${state.project.mediaUpload.sizeBytes}`}
+                  className="mt-4 border-t border-slate-100 pt-4"
+                >
+                  <h3 className="text-xs font-medium text-slate-700">Direitos do vídeo</h3>
+                  {state.project.mediaUpload.rightsStatus && (
+                    <p className="mt-1 text-xs text-emerald-700">
+                      Declarado: {RIGHTS_STATUS_LABELS[state.project.mediaUpload.rightsStatus]}
+                      {state.project.mediaUpload.containsSyntheticMedia &&
+                        " · contém mídia sintética"}
+                    </p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <select
+                      ref={rightsStatusRef}
+                      aria-label="Status de direitos"
+                      defaultValue={state.project.mediaUpload.rightsStatus ?? ""}
+                      className="rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                    >
+                      <option value="" disabled>
+                        Selecione o status de direitos
+                      </option>
+                      {RIGHTS_STATUS_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {RIGHTS_STATUS_LABELS[option]}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <input
+                        ref={syntheticMediaRef}
+                        type="checkbox"
+                        defaultChecked={state.project.mediaUpload.containsSyntheticMedia}
+                      />
+                      Contém mídia sintética (gerada/alterada por IA)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveRights()}
+                      disabled={busy === "rights"}
+                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                    >
+                      {busy === "rights" ? "Salvando…" : "Salvar declaração"}
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
