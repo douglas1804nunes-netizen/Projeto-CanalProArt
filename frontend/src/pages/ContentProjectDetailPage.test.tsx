@@ -24,6 +24,7 @@ const emptyProject = {
   scripts: [],
   generatedTitles: [],
   generatedDescriptions: [],
+  mediaUpload: null,
 };
 
 describe("ContentProjectDetailPage", () => {
@@ -33,6 +34,7 @@ describe("ContentProjectDetailPage", () => {
     renderPage();
 
     expect(await screen.findByText("Vídeo sobre gatos")).toBeInTheDocument();
+    expect(screen.getByText("Nenhum vídeo enviado ainda.")).toBeInTheDocument();
     expect(screen.getByText("Nenhum roteiro gerado ainda.")).toBeInTheDocument();
     expect(screen.getByText("Gere um roteiro antes da descrição.")).toBeInTheDocument();
   });
@@ -93,6 +95,64 @@ describe("ContentProjectDetailPage", () => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/content-projects/project-1/titles/title-2/select",
         expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
+
+  it("mostra o player e os dados do vídeo enviado", async () => {
+    const projectWithMedia = {
+      ...emptyProject,
+      mediaUpload: {
+        id: "media-1",
+        fileName: "video.mp4",
+        mimeType: "video/mp4",
+        sizeBytes: "2500000",
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => projectWithMedia }),
+    );
+
+    renderPage();
+
+    expect(await screen.findByText(/video\.mp4/)).toBeInTheDocument();
+    expect(screen.getByText(/2\.5MB/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Substituir vídeo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remover" })).toBeInTheDocument();
+  });
+
+  it("remove o vídeo enviado", async () => {
+    const projectWithMedia = {
+      ...emptyProject,
+      mediaUpload: {
+        id: "media-1",
+        fileName: "video.mp4",
+        mimeType: "video/mp4",
+        sizeBytes: "2500000",
+      },
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/content-projects/project-1" && !init?.method) {
+        return Promise.resolve({ ok: true, json: async () => projectWithMedia });
+      }
+      if (url === "/api/content-projects/project-1/media" && init?.method === "DELETE") {
+        return Promise.resolve({ ok: true });
+      }
+      return Promise.reject(new Error(`fetch não mockado para ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPage();
+
+    const removeButton = await screen.findByRole("button", { name: "Remover" });
+    fireEvent.click(removeButton);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/content-projects/project-1/media",
+        expect.objectContaining({ method: "DELETE" }),
       );
     });
   });

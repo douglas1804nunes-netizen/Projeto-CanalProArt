@@ -92,12 +92,19 @@ export async function contentProjectRoutes(app: FastifyInstance) {
           scripts: { orderBy: { version: "desc" } },
           generatedTitles: { orderBy: { createdAt: "desc" } },
           generatedDescriptions: { orderBy: { createdAt: "desc" } },
+          mediaUpload: true,
         },
       });
       if (!project) {
         return reply.status(404).send({ error: "Projeto não encontrado" });
       }
-      return reply.send(project);
+      // BigInt não serializa em JSON — mesma questão de trends.ts (Fase 6).
+      return reply.send({
+        ...project,
+        mediaUpload: project.mediaUpload
+          ? { ...project.mediaUpload, sizeBytes: project.mediaUpload.sizeBytes.toString() }
+          : null,
+      });
     },
   );
 

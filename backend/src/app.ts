@@ -5,6 +5,7 @@ import jwt from "@fastify/jwt";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
+import multipart from "@fastify/multipart";
 import path from "node:path";
 import { env, rootDir } from "./env.js";
 import { prisma } from "./prisma.js";
@@ -17,6 +18,12 @@ import { dashboardRoutes } from "./routes/dashboard.js";
 import { opportunityRoutes } from "./routes/opportunities.js";
 import { aiRoutes } from "./routes/ai.js";
 import { contentProjectRoutes } from "./routes/contentProjects.js";
+import { mediaRoutes } from "./routes/media.js";
+
+// Vídeos podem ser grandes — 500MB é um teto razoável pra upload local de
+// dev sem travar o processo com arquivos absurdos (ver docs/ARCHITECTURE.md,
+// Fase 13).
+const MAX_MEDIA_UPLOAD_BYTES = 500 * 1024 * 1024;
 
 // O callback OAuth do YouTube (Fase 4) recebe "code"/"state" na query string,
 // que o serializer padrão do Fastify logaria em texto puro em "req.url" (pino
@@ -83,6 +90,10 @@ export function buildApp() {
     timeWindow: "1 minute",
   });
 
+  app.register(multipart, {
+    limits: { fileSize: MAX_MEDIA_UPLOAD_BYTES, files: 1 },
+  });
+
   app.register(cookie);
   app.register(jwt, {
     secret: env.JWT_SECRET,
@@ -113,6 +124,7 @@ export function buildApp() {
   app.register(opportunityRoutes);
   app.register(aiRoutes);
   app.register(contentProjectRoutes);
+  app.register(mediaRoutes);
 
   // Produção: o backend serve o build do frontend (mesma origem, sem CORS
   // entre front e back). Em dev, o Vite roda separado e faz proxy de /api

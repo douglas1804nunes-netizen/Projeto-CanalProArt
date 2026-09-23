@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 type ContentProjectStatus = "DRAFT" | "IN_PROGRESS" | "READY" | "PUBLISHED" | "ARCHIVED";
@@ -22,6 +22,13 @@ type GeneratedDescription = {
   selected: boolean;
 };
 
+type MediaUpload = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: string;
+};
+
 type ContentProjectDetail = {
   id: string;
   title: string;
@@ -29,7 +36,17 @@ type ContentProjectDetail = {
   scripts: Script[];
   generatedTitles: GeneratedTitle[];
   generatedDescriptions: GeneratedDescription[];
+  mediaUpload: MediaUpload | null;
 };
+
+function formatFileSize(bytes: string): string {
+  const value = Number(bytes);
+  if (!Number.isFinite(value)) return bytes;
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}GB`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}MB`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}KB`;
+  return `${value}B`;
+}
 
 type DetailState =
   | { status: "loading" }
@@ -58,6 +75,7 @@ export function ContentProjectDetailPage() {
   const [state, setState] = useState<DetailState>({ status: "loading" });
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadProject = useCallback(async () => {
     if (!id) return;
@@ -165,6 +183,29 @@ export function ContentProjectDetailPage() {
     );
   }
 
+  async function handleUploadMedia() {
+    const file = fileInputRef.current?.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    await runAction("media-upload", () =>
+      fetch(`/api/content-projects/${id}/media`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      }),
+    );
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleRemoveMedia() {
+    await runAction("media-remove", () =>
+      fetch(`/api/content-projects/${id}/media`, { method: "DELETE", credentials: "include" }),
+    );
+  }
+
   return (
     <div className="max-w-4xl">
       <Link to="/content" className="text-sm text-slate-500 hover:text-slate-700">
@@ -198,6 +239,50 @@ export function ContentProjectDetailPage() {
           </div>
 
           {actionError && <p className="mt-3 text-sm text-red-600">{actionError}</p>}
+
+          <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-sm font-medium text-slate-700">Vídeo</h2>
+            {state.project.mediaUpload ? (
+              <div className="mt-3">
+                <video
+                  controls
+                  src={`/api/content-projects/${id}/media/file`}
+                  className="w-full rounded-md bg-black"
+                />
+                <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                  <span>
+                    {state.project.mediaUpload.fileName} ·{" "}
+                    {formatFileSize(state.project.mediaUpload.sizeBytes)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveMedia()}
+                    disabled={busy === "media-remove"}
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                  >
+                    {busy === "media-remove" ? "Removendo…" : "Remover"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-slate-500">Nenhum vídeo enviado ainda.</p>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <input ref={fileInputRef} type="file" accept="video/*" className="text-sm" />
+              <button
+                type="button"
+                onClick={() => void handleUploadMedia()}
+                disabled={busy === "media-upload"}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+              >
+                {busy === "media-upload"
+                  ? "Enviando…"
+                  : state.project.mediaUpload
+                    ? "Substituir vídeo"
+                    : "Enviar vídeo"}
+              </button>
+            </div>
+          </div>
 
           <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
