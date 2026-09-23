@@ -274,6 +274,42 @@ dependências de todos os pacotes.
   só com HOT/RISING, e o dismiss persistindo `DISMISSED` no Postgres (não
   só otimista no client).
 
+### Página de análise de tendência (Fase 10)
+
+- `GET /api/trends/:id`: devolve um `Trend` com o **score individual de
+  cada vídeo** (velocity/engagementRate/recencyScore/videoScore) e o
+  **histórico** de scores do mesmo `(userId, topic, regionCode)` em ordem
+  cronológica, incluindo o trend atual — dá pra ver a trajetória, não só
+  o número final. 404 se o trend não existir ou for de outro usuário.
+- As métricas por vídeo são **recalculadas com dados atuais** (mesma
+  lógica de `attachMetrics` usada na busca) em vez de persistidas no
+  momento da criação do `Trend` — evita ter duas fontes de verdade pro
+  cálculo, e `recencyScore` depende de "agora" (não faria sentido
+  congelar o valor de quando o trend foi criado).
+- `POST /api/trends/search` (Fase 6) passou a incluir o `id` do `Trend`
+  na resposta (cache-hit e busca nova); `GET /api/dashboard` e
+  `GET /api/opportunities` (Fase 9) passaram a incluir `trendId` em cada
+  oportunidade — os três pontos onde uma tendência já aparecia na UI
+  (badge da busca, gráfico do dashboard, lista de oportunidades) agora
+  linkam pra análise em vez de só mostrar o score isolado.
+- Frontend: `TrendAnalysisPage.tsx` (rota `/trends/:id`) mostra o
+  cabeçalho (tópico, classificação, score, data), um `LineChart`
+  (Recharts) com o histórico — só renderiza com 2+ pontos, senão mostra
+  uma mensagem explicando que o histórico se constrói com novas buscas
+  — e a lista de vídeos com o score/velocity/engagement/recency de cada
+  um. As barras do gráfico do Dashboard e os itens de "Top oportunidades"
+  ficaram clicáveis (`onClick` do `Bar` do Recharts / `Link` ao redor do
+  item da lista) pra chegar direto na análise.
+- **Testado sem credenciais reais do Google**: 404 (inexistente e de
+  outro usuário), preservação de rank/score por vídeo e ordem
+  cronológica do histórico com dados fabricados via Prisma. Validado ao
+  vivo no navegador com um histórico de 3 trends fabricado (scores
+  40→55→88): gráfico de linha renderiza a trajetória correta, os 3
+  vídeos aparecem com score/engajamento/velocidade recalculados
+  corretamente, e os três pontos de entrada (clique na barra do
+  dashboard, link na lista de oportunidades, link "Ver análise completa"
+  após uma busca em cache) navegam pro mesmo trend.
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -357,7 +393,7 @@ dependências de todos os pacotes.
 | 7    | Métricas (velocidade/engajamento/recência/volume) ✅                                                          |
 | 8    | Trend Score (cálculo server-side) + classificação ✅                                                          |
 | 9    | Dashboard (cards, gráfico, top oportunidades) ✅                                                              |
-| 10   | Página de análise de tendência                                                                                |
+| 10   | Página de análise de tendência ✅                                                                             |
 | 11   | IA (`AIProvider`: ideias/roteiro/títulos/descrição)                                                           |
 | 12   | Content Projects                                                                                              |
 | 13   | Upload de mídia (vídeo próprio/autorizado)                                                                    |
