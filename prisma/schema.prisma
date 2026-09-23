@@ -114,7 +114,8 @@ model Search {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  searchVideos SearchVideo[]
 
   @@index([userId])
   @@index([fetchedAt])
@@ -137,8 +138,9 @@ model Video {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  metrics     VideoMetric[]
-  trendVideos TrendVideo[]
+  metrics      VideoMetric[]
+  trendVideos  TrendVideo[]
+  searchVideos SearchVideo[]
 
   @@index([channelId])
   @@index([publishedAt])
@@ -197,6 +199,25 @@ model TrendVideo {
   @@unique([trendId, videoId])
   @@index([videoId])
   @@map("trend_videos")
+}
+
+// Liga um Search aos vídeos que ele retornou (ordem preservada via rank) —
+// mesmo padrão de TrendVideo. Existe pra poder servir uma busca repetida
+// (mesmo userId/query/regionCode, ver "Retenção e atualização de dados" em
+// docs/YOUTUBE.md) direto do cache, sem gastar cota de novo.
+model SearchVideo {
+  id        String   @id @default(cuid())
+  searchId  String
+  videoId   String
+  rank      Int
+  createdAt DateTime @default(now())
+
+  search Search @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  video  Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([searchId, videoId])
+  @@index([videoId])
+  @@map("search_videos")
 }
 
 // --- Oportunidades e produção de conteúdo --------------------------------
