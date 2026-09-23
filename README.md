@@ -10,7 +10,7 @@ através da API oficial do YouTube.
 > públicas. Toda publicação exige um vídeo enviado pelo próprio usuário com
 > direitos declarados (ORIGINAL, AUTHORIZED, LICENSED ou PUBLIC_DOMAIN).
 
-**Status atual: Fase 14 — Validação de direitos.**
+**Status atual: Fase 15 — Preview.**
 Veja o roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack

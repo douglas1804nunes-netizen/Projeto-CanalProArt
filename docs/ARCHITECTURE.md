@@ -483,6 +483,30 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
   declarar e tentar de novo funciona — confirmado por query direta no
   banco (`status = 'READY'`), não só pela resposta da UI.
 
+### Preview (Fase 15)
+
+- Fase puramente de composição — nenhuma rota nova no backend. `GET
+/api/content-projects/:id` (Fase 12) já devolve tudo que a prévia
+  precisa (`mediaUpload`, `generatedTitles`/`generatedDescriptions` com
+  `selected`, `scripts`); `ContentProjectPreviewPage.tsx` (rota
+  `/content/:id/preview`) só lê e recombina esses dados num formato
+  somente-leitura — vídeo, título e descrição **selecionados** (não a
+  lista inteira de opções, ao contrário da página de detalhe) + um
+  checklist (`buildChecklist`, função pura) do que falta pra ficar
+  pronto: vídeo enviado, direitos declarados, roteiro gerado, título e
+  descrição selecionados.
+- Deliberadamente **sem botão de publicar** — a página existe pra dar
+  confiança antes da publicação de verdade, que só existe a partir da
+  Fase 16 (upload real pro YouTube); um botão "Publicar" aqui não faria
+  nada além de enganar quem estivesse testando.
+- Link "Ver prévia" adicionado no cabeçalho de
+  `ContentProjectDetailPage.tsx`, ao lado do seletor de status.
+- **Testado sem rede**: checklist com tudo pendente vs. tudo feito,
+  título/descrição errados (não selecionados) não aparecem na prévia,
+  404 pro projeto inexistente. Validado ao vivo no navegador com um
+  projeto semeado já com vídeo/roteiro/título/descrição — checklist
+  totalmente verde, título e descrição corretos exibidos.
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -576,7 +600,7 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
 | 12   | Content Projects ✅                                                                                           |
 | 13   | Upload de mídia (vídeo próprio/autorizado) ✅                                                                 |
 | 14   | Validação de direitos ✅                                                                                      |
-| 15   | Preview                                                                                                       |
+| 15   | Preview ✅                                                                                                    |
 | 16   | Upload para o YouTube                                                                                         |
 | 17   | Histórico de publicações                                                                                      |
 | 18   | Testes E2E + revisão de cobertura (testes unitários/integração já são escritos a cada fase — ver nota abaixo) |
