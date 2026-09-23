@@ -55,17 +55,15 @@ dependências de todos os pacotes.
 
 - PostgreSQL 16 via `docker-compose.yml` (uso local/dev). Em produção, Postgres
   gerenciado pelo Render (Fase 20).
-- Prisma como ORM. **Fase 1 tem só `datasource` + `generator`** — nenhum
-  modelo ainda. O schema completo (14 tabelas do briefing: `users`,
+- Prisma como ORM. Schema completo (14 tabelas do briefing: `users`,
   `youtube_accounts`, `searches`, `videos`, `video_metrics`, `trends`,
   `trend_videos`, `opportunities`, `content_projects`, `scripts`,
   `generated_titles`, `generated_descriptions`, `published_videos`,
-  `audit_logs`) entra na **Fase 2**.
+  `audit_logs`) implementado na **Fase 2** (`prisma/schema.prisma` +
+  migration `prisma/migrations/20260923020625_init_schema`). Nenhuma rota
+  usa esses modelos ainda — isso é a Fase 3 em diante.
 
-### Diretrizes para o schema da Fase 2
-
-Registradas aqui com antecedência para não virarem migrations retroativas
-depois — nada disto é implementado na Fase 1:
+### Diretrizes seguidas no schema da Fase 2
 
 - **Enums do Prisma** para campos de domínio fechado em vez de `String` solto
   — ex.: `enum RightsStatus { ORIGINAL AUTHORIZED LICENSED PUBLIC_DOMAIN }`
@@ -115,7 +113,7 @@ depois — nada disto é implementado na Fase 1:
 | Fase | Escopo                                                                                                        |
 | ---- | ------------------------------------------------------------------------------------------------------------- |
 | 1    | **Arquitetura** (monorepo, Docker, env, health check) ✅                                                      |
-| 2    | PostgreSQL + Prisma (schema completo)                                                                         |
+| 2    | PostgreSQL + Prisma (schema completo) ✅                                                                      |
 | 3    | Autenticação (cadastro/login/JWT) + `@fastify/helmet` e `@fastify/rate-limit`                                 |
 | 4    | YouTube OAuth (connect/callback/refresh/disconnect)                                                           |
 | 5    | YouTube Data API (`YouTubeService`)                                                                           |

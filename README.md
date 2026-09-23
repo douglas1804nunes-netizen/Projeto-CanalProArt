@@ -10,8 +10,8 @@ através da API oficial do YouTube.
 > públicas. Toda publicação exige um vídeo enviado pelo próprio usuário com
 > direitos declarados (ORIGINAL, AUTHORIZED, LICENSED ou PUBLIC_DOMAIN).
 
-**Status atual: Fase 1 — Arquitetura.** Veja o roadmap completo em
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+**Status atual: Fase 2 — PostgreSQL + Prisma (schema completo).** Veja o
+roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack
 
@@ -48,10 +48,10 @@ através da API oficial do YouTube.
    docker compose up -d postgres
    ```
 
-4. Gere o Prisma Client:
+4. Aplique as migrations (isso já gera o Prisma Client também):
 
    ```bash
-   npm run prisma:generate
+   npm run prisma:migrate
    ```
 
 5. Em dois terminais separados, rode o backend e o frontend:
