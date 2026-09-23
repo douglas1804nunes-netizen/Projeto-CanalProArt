@@ -4,7 +4,11 @@ import { z } from "zod";
 import {
   calculateEngagementRate,
   calculateRecencyScore,
+  calculateTrendScore,
   calculateVelocity,
+  calculateVideoScore,
+  calculateVolumeScore,
+  classifyTrend,
   createYoutubeService,
 } from "@canalproart/services";
 import { env } from "../env.js";
@@ -17,6 +21,11 @@ import { prisma } from "../prisma.js";
 // fique visivelmente desatualizada num dia de uso.
 const SEARCH_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
+// "populares" é o topic usado pra buscas sem palavra-chave (query null) —
+// Trend.topic é obrigatório no schema, diferente de Search.query (que pode
+// ser null representando "sem filtro").
+const DEFAULT_TOPIC = "populares";
+
 const searchBodySchema = z.object({
   query: z
     .string()
@@ -26,6 +35,8 @@ const searchBodySchema = z.object({
     .transform((value) => (value === "" ? undefined : value)),
   regionCode: z.string().length(2, "regionCode precisa ter 2 letras (ex.: BR)").default("BR"),
 });
+
+type SerializedVideo = ReturnType<typeof serializeVideo>;
 
 // metrics[0] é o mais recente (a query que preenche isso ordena por
 // fetchedAt desc) — os demais (se houver) alimentam calculateVelocity.
@@ -51,7 +62,7 @@ function serializeVideo(video: Video, metrics: VideoMetric[]) {
   };
 }
 
-async function attachMetrics(videos: Video[]) {
+async function attachMetrics(videos: Video[]): Promise<SerializedVideo[]> {
   if (videos.length === 0) return [];
 
   const metrics = await prisma.videoMetric.findMany({
@@ -70,6 +81,49 @@ async function attachMetrics(videos: Video[]) {
   }
 
   return videos.map((video) => serializeVideo(video, metricsByVideoId.get(video.id) ?? []));
+}
+
+// Fase 8: agrega os scores individuais dos vídeos num trendScore único,
+// classifica comparando com o Trend anterior do mesmo tópico/região (se
+// existir) e persiste Trend + TrendVideo. Não roda em cache-hit (ver
+// chamador) — só quando a busca é nova de verdade, senão cada reload de
+// página criaria um Trend duplicado.
+async function createTrend(params: {
+  userId: string;
+  topic: string;
+  regionCode: string;
+  videos: SerializedVideo[];
+  fetchedAt: Date;
+}) {
+  const { userId, topic, regionCode, videos, fetchedAt } = params;
+
+  const videoScores = videos.map((video) =>
+    calculateVideoScore({
+      velocity: video.velocity,
+      engagementRate: video.engagementRate,
+      recencyScore: video.recencyScore,
+    }),
+  );
+  const volumeScore = calculateVolumeScore(videos.length);
+  const trendScoreValue = calculateTrendScore(videoScores, volumeScore);
+
+  const previousTrend = await prisma.trend.findFirst({
+    where: { userId, topic, regionCode },
+    orderBy: { fetchedAt: "desc" },
+  });
+  const classification = classifyTrend(trendScoreValue, previousTrend?.trendScore ?? null);
+
+  const trend = await prisma.trend.create({
+    data: { userId, topic, regionCode, trendScore: trendScoreValue, classification, fetchedAt },
+  });
+
+  if (videos.length > 0) {
+    await prisma.trendVideo.createMany({
+      data: videos.map((video, index) => ({ trendId: trend.id, videoId: video.id, rank: index })),
+    });
+  }
+
+  return trend;
 }
 
 export async function trendRoutes(app: FastifyInstance) {
@@ -91,10 +145,12 @@ export async function trendRoutes(app: FastifyInstance) {
           .send({ error: "Parâmetros inválidos", details: parsed.error.flatten().fieldErrors });
       }
       const { query, regionCode } = parsed.data;
+      const topic = query ?? DEFAULT_TOPIC;
+      const userId = request.user.sub;
 
       const cached = await prisma.search.findFirst({
         where: {
-          userId: request.user.sub,
+          userId,
           regionCode,
           query: query ?? null,
           fetchedAt: { gte: new Date(Date.now() - SEARCH_CACHE_TTL_MS) },
@@ -105,10 +161,17 @@ export async function trendRoutes(app: FastifyInstance) {
 
       if (cached) {
         const videos = await attachMetrics(cached.searchVideos.map((sv) => sv.video));
+        // Só lê o Trend já calculado (se existir) — cache-hit não recalcula
+        // nem persiste de novo.
+        const trend = await prisma.trend.findFirst({
+          where: { userId, topic, regionCode },
+          orderBy: { fetchedAt: "desc" },
+        });
         return reply.send({
           searchId: cached.id,
           cached: true,
           fetchedAt: cached.fetchedAt,
+          trend: trend ? { score: trend.trendScore, classification: trend.classification } : null,
           videos,
         });
       }
@@ -125,13 +188,7 @@ export async function trendRoutes(app: FastifyInstance) {
 
       const fetchedAt = new Date();
       const search = await prisma.search.create({
-        data: {
-          userId: request.user.sub,
-          query: query ?? null,
-          regionCode,
-          resultCount: videos.length,
-          fetchedAt,
-        },
+        data: { userId, query: query ?? null, regionCode, resultCount: videos.length, fetchedAt },
       });
 
       if (videos.length > 0) {
@@ -145,10 +202,19 @@ export async function trendRoutes(app: FastifyInstance) {
       }
 
       const serializedVideos = await attachMetrics(videos);
+      const trend = await createTrend({
+        userId,
+        topic,
+        regionCode,
+        videos: serializedVideos,
+        fetchedAt,
+      });
+
       return reply.send({
         searchId: search.id,
         cached: false,
         fetchedAt,
+        trend: { score: trend.trendScore, classification: trend.classification },
         videos: serializedVideos,
       });
     },
@@ -161,5 +227,16 @@ export async function trendRoutes(app: FastifyInstance) {
       take: 10,
     });
     return reply.send(searches);
+  });
+
+  // Fase 8: lista os trends já calculados do usuário, mais recentes primeiro
+  // — visão geral do que foi classificado como HOT/RISING/etc. até agora.
+  app.get("/api/trends", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const trends = await prisma.trend.findMany({
+      where: { userId: request.user.sub },
+      orderBy: { fetchedAt: "desc" },
+      take: 20,
+    });
+    return reply.send(trends);
   });
 }

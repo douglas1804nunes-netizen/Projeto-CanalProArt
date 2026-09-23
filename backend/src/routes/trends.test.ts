@@ -7,13 +7,16 @@ import { prisma } from "../prisma.js";
 // Google — ver docs/ARCHITECTURE.md. Aqui cobre o que é nosso: guarda de
 // autenticação, validação, cache-hit (dados fabricados) e isolamento por
 // usuário no histórico.
-describe("Rotas de tendências (Fase 6)", () => {
+describe("Rotas de tendências (Fases 6-8)", () => {
   const app = buildApp();
   const createdEmails: string[] = [];
   const createdVideoIds: string[] = [];
   const createdSearchIds: string[] = [];
+  const createdTrendIds: string[] = [];
 
   afterAll(async () => {
+    await prisma.trendVideo.deleteMany({ where: { trendId: { in: createdTrendIds } } });
+    await prisma.trend.deleteMany({ where: { id: { in: createdTrendIds } } });
     await prisma.searchVideo.deleteMany({ where: { searchId: { in: createdSearchIds } } });
     await prisma.search.deleteMany({ where: { id: { in: createdSearchIds } } });
     await prisma.videoMetric.deleteMany({ where: { videoId: { in: createdVideoIds } } });
@@ -129,6 +132,7 @@ describe("Rotas de tendências (Fase 6)", () => {
     const body = response.json() as {
       searchId: string;
       cached: boolean;
+      trend: { score: number; classification: string } | null;
       videos: Array<{ id: string; viewCount: string }>;
     };
 
@@ -138,6 +142,89 @@ describe("Rotas de tendências (Fase 6)", () => {
     // preserva o rank (videoA antes de videoB)
     expect(body.videos[0]).toMatchObject({ id: videoA.id, viewCount: "1000" });
     expect(body.videos[1]).toMatchObject({ id: videoB.id, viewCount: "2000" });
+    // nenhum Trend foi criado pra esse tópico — cache-hit não calcula na hora
+    expect(body.trend).toBeNull();
+  });
+
+  it("cache-hit inclui o Trend já calculado quando existe um pro mesmo tópico/região", async () => {
+    const { token, userId } = await registerUser("cache-hit-with-trend");
+
+    const video = await seedVideo(`cache-trend-${Date.now()}`, 5000n);
+
+    const search = await prisma.search.create({
+      data: {
+        userId,
+        query: "cachorros-fofos",
+        regionCode: "BR",
+        resultCount: 1,
+        fetchedAt: new Date(),
+      },
+    });
+    createdSearchIds.push(search.id);
+    await prisma.searchVideo.create({ data: { searchId: search.id, videoId: video.id, rank: 0 } });
+
+    const trend = await prisma.trend.create({
+      data: {
+        userId,
+        topic: "cachorros-fofos",
+        regionCode: "BR",
+        trendScore: 42,
+        classification: "RISING",
+        fetchedAt: new Date(),
+      },
+    });
+    createdTrendIds.push(trend.id);
+    await prisma.trendVideo.create({ data: { trendId: trend.id, videoId: video.id, rank: 0 } });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/trends/search",
+      cookies: { token },
+      payload: { query: "cachorros-fofos", regionCode: "BR" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as { trend: { score: number; classification: string } | null };
+    expect(body.trend).toEqual({ score: 42, classification: "RISING" });
+  });
+
+  it("GET /api/trends exige autenticação", async () => {
+    const response = await app.inject({ method: "GET", url: "/api/trends" });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("GET /api/trends devolve só os trends do próprio usuário", async () => {
+    const { token: tokenA, userId: userIdA } = await registerUser("trends-list-a");
+    const { token: tokenB } = await registerUser("trends-list-b");
+
+    const trend = await prisma.trend.create({
+      data: {
+        userId: userIdA,
+        topic: "topico-exclusivo",
+        regionCode: "BR",
+        trendScore: 55,
+        classification: "HOT",
+        fetchedAt: new Date(),
+      },
+    });
+    createdTrendIds.push(trend.id);
+
+    const responseA = await app.inject({
+      method: "GET",
+      url: "/api/trends",
+      cookies: { token: tokenA },
+    });
+    const responseB = await app.inject({
+      method: "GET",
+      url: "/api/trends",
+      cookies: { token: tokenB },
+    });
+
+    const trendsA = responseA.json() as Array<{ id: string }>;
+    const trendsB = responseB.json() as Array<{ id: string }>;
+
+    expect(trendsA.some((t) => t.id === trend.id)).toBe(true);
+    expect(trendsB.some((t) => t.id === trend.id)).toBe(false);
   });
 
   it("GET /api/trends/searches devolve só o histórico do próprio usuário", async () => {
