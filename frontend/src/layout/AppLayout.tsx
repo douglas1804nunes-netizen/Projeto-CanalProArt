@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 
 const navItems = [
   { to: "/", label: "Dashboard", end: true },
@@ -13,6 +14,13 @@ const navItems = [
 
 export function AppLayout() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { state, logout } = useAuth();
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    await logout();
+    navigate("/login", { replace: true });
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900">
@@ -59,6 +67,20 @@ export function AppLayout() {
             </NavLink>
           ))}
         </nav>
+
+        {state.status === "authenticated" && (
+          <div className="absolute inset-x-4 bottom-6 border-t border-slate-200 pt-4">
+            <p className="truncate px-2 text-sm font-medium text-slate-700">{state.user.name}</p>
+            <p className="truncate px-2 text-xs text-slate-400">{state.user.email}</p>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="mt-2 w-full rounded-md px-3 py-2 text-left text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            >
+              Sair
+            </button>
+          </div>
+        )}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
