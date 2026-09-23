@@ -233,6 +233,47 @@ dependências de todos os pacotes.
   certa, engajamento calculado bate com os números semeados (420k/5M =
   8.4%).
 
+### Dashboard + Oportunidades (Fase 9)
+
+- Toda `Trend` HOT/RISING vira uma `Opportunity` automaticamente
+  (`maybeCreateOpportunity` em `trends.ts`, chamada dentro de `createTrend`
+  logo após persistir o Trend) — `score = trendScore`, `status = NEW`.
+  STABLE/DECLINING não geram oportunidade; cada `Trend` só gera **uma**
+  (checa se já existe uma `Opportunity` para aquele `trendId` antes de
+  criar) — evita duplicar se, no futuro, `createTrend` rodar mais de uma
+  vez para o mesmo trend.
+- `GET /api/dashboard`: agrega em paralelo (`Promise.all`) as contagens
+  (vídeos analisados, tendências, oportunidades, conteúdos, publicações),
+  o top 5 de trends por score e o top 5 de oportunidades `NEW` por score.
+  "Vídeos analisados" conta vídeos **distintos** que já apareceram em
+  alguma busca do usuário — `Video` é uma tabela de cache global (sem
+  `userId`), então a contagem por usuário passa por `SearchVideo`
+  (`distinct: ["videoId"]`). `contentProjects`/`publishedVideos` sempre
+  devolvem 0 até as fases 12/17 existirem — a query já é a certa, só não
+  tem registro que bata com o filtro ainda.
+- `GET /api/opportunities` / `POST /api/opportunities/:id/dismiss`: lista
+  as oportunidades do usuário (mais relevante primeiro) e permite marcar
+  uma como `DISMISSED`. Não modela `IN_PROGRESS`/`CONVERTED` ainda — só
+  fazem sentido quando existir um `ContentProject` de verdade pra ligar
+  (Fase 12); dismiss é a única ação 100% independente de fases futuras.
+  404 (não 403) quando a oportunidade não existe ou é de outro usuário —
+  não revela se o ID existe.
+- Frontend: `Dashboard.tsx` mostra 5 cards, um gráfico de barras
+  (Recharts `BarChart` horizontal) com o top de trends por score e a
+  lista de top oportunidades; `OpportunitiesPage.tsx` lista todas as
+  oportunidades com um botão "Dispensar" (só aparece quando
+  `status === "NEW"`) que chama o dismiss e remove o item da lista
+  localmente após sucesso.
+- **Testado sem credenciais reais do Google**: `maybeCreateOpportunity`
+  testada diretamente (não passa pelo caminho de busca nova, que depende
+  de rede) cobrindo HOT/RISING/STABLE/DECLINING e não-duplicação; rotas
+  de dashboard/oportunidades cobertas com dados fabricados via Prisma
+  (contagens, ordenação, isolamento por usuário, 404 de dismiss). Validado
+  ao vivo no navegador com dados semeados direto no banco: cards batendo
+  com as contagens reais, gráfico ordenado por score, top oportunidades
+  só com HOT/RISING, e o dismiss persistindo `DISMISSED` no Postgres (não
+  só otimista no client).
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -315,7 +356,7 @@ dependências de todos os pacotes.
 | 6    | Pesquisa de tendências (`/trends`) ✅                                                                         |
 | 7    | Métricas (velocidade/engajamento/recência/volume) ✅                                                          |
 | 8    | Trend Score (cálculo server-side) + classificação ✅                                                          |
-| 9    | Dashboard (cards, gráfico, top oportunidades)                                                                 |
+| 9    | Dashboard (cards, gráfico, top oportunidades) ✅                                                              |
 | 10   | Página de análise de tendência                                                                                |
 | 11   | IA (`AIProvider`: ideias/roteiro/títulos/descrição)                                                           |
 | 12   | Content Projects                                                                                              |
