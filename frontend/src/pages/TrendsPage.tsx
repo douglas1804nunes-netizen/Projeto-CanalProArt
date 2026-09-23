@@ -17,7 +17,18 @@ type TrendVideo = {
   recencyScore: number;
 };
 
-type SearchResult = { searchId: string; cached: boolean; fetchedAt: string; videos: TrendVideo[] };
+type TrendClassification = "RISING" | "HOT" | "STABLE" | "DECLINING";
+
+type SearchResult = {
+  searchId: string;
+  cached: boolean;
+  fetchedAt: string;
+  // Fase 8 — ver services/src/youtube/trendScore.ts. null quando ainda não
+  // existe um Trend calculado pra esse tópico/região (busca antiga, de
+  // antes da Fase 8, servida do cache).
+  trend: { score: number; classification: TrendClassification } | null;
+  videos: TrendVideo[];
+};
 
 type RecentSearch = {
   id: string;
@@ -53,6 +64,20 @@ function formatVelocity(value: number | null): string | null {
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}mil views/h`;
   return `${Math.round(value)} views/h`;
 }
+
+const CLASSIFICATION_LABELS: Record<TrendClassification, string> = {
+  HOT: "🔥 Em alta",
+  RISING: "📈 Subindo",
+  STABLE: "➡️ Estável",
+  DECLINING: "📉 Caindo",
+};
+
+const CLASSIFICATION_STYLES: Record<TrendClassification, string> = {
+  HOT: "bg-red-100 text-red-700",
+  RISING: "bg-emerald-100 text-emerald-700",
+  STABLE: "bg-slate-100 text-slate-600",
+  DECLINING: "bg-amber-100 text-amber-700",
+};
 
 export function TrendsPage() {
   const [query, setQuery] = useState("");
@@ -170,10 +195,20 @@ export function TrendsPage() {
 
         {state.status === "success" && (
           <>
-            <p className="mb-3 text-xs text-slate-400">
-              {state.result.cached ? "Resultado do cache" : "Buscado agora"} ·{" "}
-              {new Date(state.result.fetchedAt).toLocaleString("pt-BR")}
-            </p>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <p className="text-xs text-slate-400">
+                {state.result.cached ? "Resultado do cache" : "Buscado agora"} ·{" "}
+                {new Date(state.result.fetchedAt).toLocaleString("pt-BR")}
+              </p>
+              {state.result.trend && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${CLASSIFICATION_STYLES[state.result.trend.classification]}`}
+                >
+                  {CLASSIFICATION_LABELS[state.result.trend.classification]} ·{" "}
+                  {state.result.trend.score}
+                </span>
+              )}
+            </div>
             {state.result.videos.length === 0 ? (
               <p className="text-sm text-slate-500">Nenhum vídeo encontrado.</p>
             ) : (

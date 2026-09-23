@@ -65,6 +65,35 @@ describe("TrendsPage", () => {
     expect(screen.getByText(/2\.5mil views\/h/)).toBeInTheDocument();
   });
 
+  it("mostra o badge de classificação do trend quando presente", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/trends/searches") {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      if (url === "/api/trends/search") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            searchId: "search-1",
+            cached: false,
+            fetchedAt: new Date().toISOString(),
+            trend: { score: 82, classification: "HOT" },
+            videos: [sampleVideo],
+          }),
+        });
+      }
+      return Promise.reject(new Error(`fetch não mockado para ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TrendsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
+    expect(await screen.findByText(/Em alta · 82/)).toBeInTheDocument();
+  });
+
   it("mostra erro quando a busca falha", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
