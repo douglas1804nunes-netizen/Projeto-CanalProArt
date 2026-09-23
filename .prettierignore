@@ -5,3 +5,6 @@ dist
 coverage
 **/coverage
 package-lock.json
+
+# artefatos de ferramentas locais (não fazem parte do projeto/git)
+.agents

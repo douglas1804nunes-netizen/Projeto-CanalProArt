@@ -36,3 +36,8 @@ coverage/
 
 # docker
 docker-compose.override.yml
+
+# ferramentas locais de IA (estado da máquina de quem está codando, não do projeto)
+.claude/
+.agents/
+skills-lock.json
