@@ -3,6 +3,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { RequireAuth } from "./auth/RequireAuth";
 import { AppLayout } from "./layout/AppLayout";
 import { ContentProjectDetailPage } from "./pages/ContentProjectDetailPage";
+import { ContentProjectPreviewPage } from "./pages/ContentProjectPreviewPage";
 import { ContentProjectsPage } from "./pages/ContentProjectsPage";
 import { Dashboard } from "./pages/Dashboard";
 import { LoginPage } from "./pages/LoginPage";
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/opportunities" element={<OpportunitiesPage />} />
             <Route path="/content" element={<ContentProjectsPage />} />
             <Route path="/content/:id" element={<ContentProjectDetailPage />} />
+            <Route path="/content/:id/preview" element={<ContentProjectPreviewPage />} />
             <Route path="/videos" element={<PlaceholderPage title="Vídeos" phase="Fase 17" />} />
             <Route path="/youtube" element={<YoutubePage />} />
             <Route

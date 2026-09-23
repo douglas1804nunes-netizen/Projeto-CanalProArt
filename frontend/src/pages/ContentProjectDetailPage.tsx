@@ -271,6 +271,12 @@ export function ContentProjectDetailPage() {
                 </option>
               ))}
             </select>
+            <Link
+              to={`/content/${id}/preview`}
+              className="text-xs text-slate-500 underline hover:text-slate-700"
+            >
+              Ver prévia
+            </Link>
           </div>
 
           {actionError && <p className="mt-3 text-sm text-red-600">{actionError}</p>}

@@ -37,6 +37,10 @@ describe("ContentProjectDetailPage", () => {
     expect(screen.getByText("Nenhum vídeo enviado ainda.")).toBeInTheDocument();
     expect(screen.getByText("Nenhum roteiro gerado ainda.")).toBeInTheDocument();
     expect(screen.getByText("Gere um roteiro antes da descrição.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver prévia" })).toHaveAttribute(
+      "href",
+      "/content/project-1/preview",
+    );
   });
 
   it("mostra 404 quando o projeto não existe", async () => {
