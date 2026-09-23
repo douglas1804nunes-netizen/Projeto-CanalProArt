@@ -7,6 +7,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { TrendsPage } from "./pages/TrendsPage";
 import { YoutubePage } from "./pages/YoutubePage";
 
 export default function App() {
@@ -19,7 +20,7 @@ export default function App() {
         <Route element={<RequireAuth />}>
           <Route element={<AppLayout />}>
             <Route index element={<Dashboard />} />
-            <Route path="/trends" element={<PlaceholderPage title="Tendências" phase="Fase 6" />} />
+            <Route path="/trends" element={<TrendsPage />} />
             <Route
               path="/opportunities"
               element={<PlaceholderPage title="Oportunidades" phase="Fase 8" />}
