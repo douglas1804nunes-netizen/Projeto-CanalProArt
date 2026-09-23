@@ -50,6 +50,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Apply database migrations
+        run: npx prisma migrate deploy --schema=prisma/schema.prisma
+        env:
+          DATABASE_URL: postgresql://canalproart:canalproart@localhost:5432/canalproart?schema=public
+
       - name: Test
         run: npm test
         env:
