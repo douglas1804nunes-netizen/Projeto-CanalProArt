@@ -445,6 +445,44 @@ dependências de todos os pacotes.
   com o vídeo da tela e apaga o arquivo do disco — confirmado via
   `ls` no diretório de uploads, não só pela resposta da API.
 
+### Validação de direitos (Fase 14)
+
+- `rightsStatus` (nullable) e `containsSyntheticMedia` (default `false`)
+  entraram no `MediaUpload` como campos separados do upload em si — a
+  declaração é um passo distinto de enviar o arquivo, e `null` marca
+  "ainda não declarado". A regra que isso serve pra cumprir já estava
+  documentada no README desde a Fase 1 ("Toda publicação exige um vídeo
+  enviado pelo próprio usuário com direitos declarados"); a Fase 14
+  simplesmente a torna **reforçada em código**, não só documentada: o
+  `PATCH /api/content-projects/:id` recusa (400) marcar o projeto como
+  `READY` se não existir `MediaUpload`, ou se existir mas
+  `rightsStatus` ainda for `null`.
+- **Reenviar o vídeo reseta a declaração** (`rightsStatus: null,
+containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
+  um arquivo novo é conteúdo diferente do que foi declarado antes; manter
+  a declaração antiga colada a um arquivo novo seria uma declaração falsa
+  por omissão.
+- `PATCH /api/content-projects/:id/media/rights`: 404 se ainda não existe
+  upload (não faz sentido declarar direitos de um vídeo que não existe),
+  valida `rightsStatus` contra o enum `RightsStatus` já existente desde a
+  Fase 2 (`ORIGINAL`/`AUTHORIZED`/`LICENSED`/`PUBLIC_DOMAIN`) e
+  `containsSyntheticMedia` como booleano obrigatório (a pergunta é
+  sempre feita, mesmo que a resposta mais comum seja `false`).
+- Frontend: seção "Direitos do vídeo" dentro do card "Vídeo" de
+  `ContentProjectDetailPage.tsx` (só existe quando já há um upload) — um
+  `<select>` + checkbox controlados via `ref` (não `useState`, mesmo
+  padrão do input de arquivo), com `key` no wrapper baseada em
+  `fileName+sizeBytes` pra forçar o formulário a resetar quando o vídeo é
+  substituído (senão os campos "não controlados" ficariam mostrando a
+  seleção antiga do usuário mesmo depois do backend zerar a declaração).
+- **Testado sem depender de rede externa**: 404 sem upload, validação de
+  `rightsStatus` inválido, reset da declaração num re-upload, e o guard
+  de `READY` nos dois sentidos (bloqueia sem declaração, libera depois
+  dela) — tudo contra o Postgres real. Validado ao vivo no navegador:
+  tentar marcar como "Pronto" sem declarar mostra o erro certo na tela,
+  declarar e tentar de novo funciona — confirmado por query direta no
+  banco (`status = 'READY'`), não só pela resposta da UI.
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -537,7 +575,7 @@ dependências de todos os pacotes.
 | 11   | IA (`AIProvider`: ideias/roteiro/títulos/descrição) ✅                                                        |
 | 12   | Content Projects ✅                                                                                           |
 | 13   | Upload de mídia (vídeo próprio/autorizado) ✅                                                                 |
-| 14   | Validação de direitos                                                                                         |
+| 14   | Validação de direitos ✅                                                                                      |
 | 15   | Preview                                                                                                       |
 | 16   | Upload para o YouTube                                                                                         |
 | 17   | Histórico de publicações                                                                                      |
