@@ -22,10 +22,20 @@ function mockFetch({ authenticated }: { authenticated: boolean }) {
             });
       }
 
-      if (url === "/api/health") {
+      if (url === "/api/dashboard") {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ status: "ok", database: "connected" }),
+          json: async () => ({
+            counts: {
+              videosAnalyzed: 0,
+              trends: 0,
+              opportunities: 0,
+              contentProjects: 0,
+              publishedVideos: 0,
+            },
+            topTrends: [],
+            topOpportunities: [],
+          }),
         });
       }
 
@@ -50,7 +60,7 @@ describe("App shell", () => {
     expect(screen.getByRole("link", { name: "Tendências" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
 
-    expect(await screen.findByText(/Backend online/)).toBeInTheDocument();
+    expect(await screen.findByText("Vídeos analisados")).toBeInTheDocument();
   });
 
   it("renderiza a página 404 para rotas desconhecidas quando autenticado", async () => {

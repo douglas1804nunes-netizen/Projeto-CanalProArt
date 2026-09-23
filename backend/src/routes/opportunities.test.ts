@@ -87,7 +87,10 @@ describe("Rotas de oportunidades (Fase 9)", () => {
   });
 
   it("POST /api/opportunities/:id/dismiss exige autenticação", async () => {
-    const response = await app.inject({ method: "POST", url: "/api/opportunities/algum-id/dismiss" });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/opportunities/algum-id/dismiss",
+    });
     expect(response.statusCode).toBe(401);
   });
 

@@ -84,7 +84,13 @@ describe("GET /api/dashboard", () => {
     createdVideoIds.push(video.id);
 
     const search = await prisma.search.create({
-      data: { userId: userIdA, query: "gatos", regionCode: "BR", resultCount: 1, fetchedAt: new Date() },
+      data: {
+        userId: userIdA,
+        query: "gatos",
+        regionCode: "BR",
+        resultCount: 1,
+        fetchedAt: new Date(),
+      },
     });
     createdSearchIds.push(search.id);
     await prisma.searchVideo.create({ data: { searchId: search.id, videoId: video.id, rank: 0 } });

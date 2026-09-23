@@ -5,6 +5,7 @@ import { AppLayout } from "./layout/AppLayout";
 import { Dashboard } from "./pages/Dashboard";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { OpportunitiesPage } from "./pages/OpportunitiesPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { TrendsPage } from "./pages/TrendsPage";
@@ -21,10 +22,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="/trends" element={<TrendsPage />} />
-            <Route
-              path="/opportunities"
-              element={<PlaceholderPage title="Oportunidades" phase="Fase 8" />}
-            />
+            <Route path="/opportunities" element={<OpportunitiesPage />} />
             <Route
               path="/content"
               element={<PlaceholderPage title="Conteúdos" phase="Fase 12" />}
