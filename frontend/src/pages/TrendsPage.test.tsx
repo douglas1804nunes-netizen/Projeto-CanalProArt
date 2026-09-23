@@ -1,10 +1,19 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TrendsPage } from "./TrendsPage";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
+
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <TrendsPage />
+    </MemoryRouter>,
+  );
+}
 
 const sampleVideo = {
   id: "video-1",
@@ -26,7 +35,7 @@ describe("TrendsPage", () => {
   it("renderiza o formulário de busca sem resultados inicialmente", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
 
-    render(<TrendsPage />);
+    renderPage();
 
     expect(screen.getByRole("heading", { name: "Tendências" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Buscar" })).toBeInTheDocument();
@@ -54,7 +63,7 @@ describe("TrendsPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TrendsPage />);
+    renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
 
@@ -78,7 +87,7 @@ describe("TrendsPage", () => {
             searchId: "search-1",
             cached: false,
             fetchedAt: new Date().toISOString(),
-            trend: { score: 82, classification: "HOT" },
+            trend: { id: "trend-1", score: 82, classification: "HOT" },
             videos: [sampleVideo],
           }),
         });
@@ -87,11 +96,15 @@ describe("TrendsPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TrendsPage />);
+    renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
 
     expect(await screen.findByText(/Em alta · 82/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver análise completa" })).toHaveAttribute(
+      "href",
+      "/trends/trend-1",
+    );
   });
 
   it("mostra erro quando a busca falha", async () => {
@@ -104,7 +117,7 @@ describe("TrendsPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TrendsPage />);
+    renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
 
@@ -143,7 +156,7 @@ describe("TrendsPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TrendsPage />);
+    renderPage();
 
     const chip = await screen.findByRole("button", { name: /gatos · BR/ });
     fireEvent.click(chip);

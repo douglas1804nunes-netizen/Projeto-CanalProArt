@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 
 type TrendVideo = {
   id: string;
@@ -26,7 +27,7 @@ type SearchResult = {
   // Fase 8 — ver services/src/youtube/trendScore.ts. null quando ainda não
   // existe um Trend calculado pra esse tópico/região (busca antiga, de
   // antes da Fase 8, servida do cache).
-  trend: { score: number; classification: TrendClassification } | null;
+  trend: { id: string; score: number; classification: TrendClassification } | null;
   videos: TrendVideo[];
 };
 
@@ -207,6 +208,14 @@ export function TrendsPage() {
                   {CLASSIFICATION_LABELS[state.result.trend.classification]} ·{" "}
                   {state.result.trend.score}
                 </span>
+              )}
+              {state.result.trend && (
+                <Link
+                  to={`/trends/${state.result.trend.id}`}
+                  className="text-xs text-slate-500 underline hover:text-slate-700"
+                >
+                  Ver análise completa
+                </Link>
               )}
             </div>
             {state.result.videos.length === 0 ? (

@@ -8,6 +8,7 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { OpportunitiesPage } from "./pages/OpportunitiesPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { TrendAnalysisPage } from "./pages/TrendAnalysisPage";
 import { TrendsPage } from "./pages/TrendsPage";
 import { YoutubePage } from "./pages/YoutubePage";
 
@@ -22,6 +23,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="/trends" element={<TrendsPage />} />
+            <Route path="/trends/:id" element={<TrendAnalysisPage />} />
             <Route path="/opportunities" element={<OpportunitiesPage />} />
             <Route
               path="/content"

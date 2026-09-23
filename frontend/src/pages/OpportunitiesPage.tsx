@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 type TrendClassification = "RISING" | "HOT" | "STABLE" | "DECLINING";
 
 type Opportunity = {
   id: string;
+  trendId: string;
   score: number;
   status: string;
   createdAt: string;
@@ -97,7 +99,12 @@ export function OpportunitiesPage() {
             {state.opportunities.map((opportunity) => (
               <li key={opportunity.id} className="flex items-center justify-between gap-3 p-4">
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{opportunity.topic}</p>
+                  <Link
+                    to={`/trends/${opportunity.trendId}`}
+                    className="text-sm font-medium text-slate-900 hover:underline"
+                  >
+                    {opportunity.topic}
+                  </Link>
                   <p className="text-xs text-slate-500">
                     {opportunity.regionCode} ·{" "}
                     {new Date(opportunity.createdAt).toLocaleString("pt-BR")}

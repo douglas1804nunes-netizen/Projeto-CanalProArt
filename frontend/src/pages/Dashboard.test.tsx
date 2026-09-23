@@ -1,10 +1,19 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Dashboard } from "./Dashboard";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
+
+function renderDashboard() {
+  return render(
+    <MemoryRouter>
+      <Dashboard />
+    </MemoryRouter>,
+  );
+}
 
 describe("Dashboard", () => {
   it("mostra os cards com as contagens vindas da API", async () => {
@@ -26,7 +35,7 @@ describe("Dashboard", () => {
       }),
     );
 
-    render(<Dashboard />);
+    renderDashboard();
 
     expect(await screen.findByText("12")).toBeInTheDocument();
     expect(screen.getByText("Vídeos analisados")).toBeInTheDocument();
@@ -40,7 +49,7 @@ describe("Dashboard", () => {
       vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }),
     );
 
-    render(<Dashboard />);
+    renderDashboard();
 
     expect(await screen.findByText(/Não foi possível carregar o dashboard/)).toBeInTheDocument();
   });
@@ -70,6 +79,7 @@ describe("Dashboard", () => {
           topOpportunities: [
             {
               id: "opp-1",
+              trendId: "trend-1",
               score: 80,
               status: "NEW",
               topic: "gatos",
@@ -81,7 +91,7 @@ describe("Dashboard", () => {
       }),
     );
 
-    render(<Dashboard />);
+    renderDashboard();
 
     expect(await screen.findByText("Top oportunidades")).toBeInTheDocument();
     expect(screen.getAllByText("gatos").length).toBeGreaterThan(0);
@@ -107,7 +117,7 @@ describe("Dashboard", () => {
       }),
     );
 
-    render(<Dashboard />);
+    renderDashboard();
 
     expect(await screen.findByText(/Nenhuma tendência calculada ainda/)).toBeInTheDocument();
     expect(screen.getByText(/Nenhuma oportunidade nova no momento/)).toBeInTheDocument();

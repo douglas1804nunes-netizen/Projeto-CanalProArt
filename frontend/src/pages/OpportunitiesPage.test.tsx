@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpportunitiesPage } from "./OpportunitiesPage";
 
@@ -6,8 +7,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <OpportunitiesPage />
+    </MemoryRouter>,
+  );
+}
+
 const sampleOpportunity = {
   id: "opp-1",
+  trendId: "trend-1",
   score: 78,
   status: "NEW",
   createdAt: new Date().toISOString(),
@@ -20,7 +30,7 @@ describe("OpportunitiesPage", () => {
   it("mostra mensagem quando não há oportunidades", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
 
-    render(<OpportunitiesPage />);
+    renderPage();
 
     expect(await screen.findByText("Nenhuma oportunidade ativa no momento.")).toBeInTheDocument();
   });
@@ -31,7 +41,7 @@ describe("OpportunitiesPage", () => {
       vi.fn().mockResolvedValue({ ok: true, json: async () => [sampleOpportunity] }),
     );
 
-    render(<OpportunitiesPage />);
+    renderPage();
 
     expect(await screen.findByText("gatos")).toBeInTheDocument();
     expect(screen.getByText(/Em alta · 78/)).toBeInTheDocument();
@@ -44,7 +54,7 @@ describe("OpportunitiesPage", () => {
       vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }),
     );
 
-    render(<OpportunitiesPage />);
+    renderPage();
 
     expect(
       await screen.findByText(/Não foi possível carregar as oportunidades/),
@@ -67,7 +77,7 @@ describe("OpportunitiesPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<OpportunitiesPage />);
+    renderPage();
 
     const dismissButton = await screen.findByRole("button", { name: "Dispensar" });
     fireEvent.click(dismissButton);

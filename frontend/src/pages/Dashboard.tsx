@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type TrendClassification = "RISING" | "HOT" | "STABLE" | "DECLINING";
@@ -21,6 +22,7 @@ type TopTrend = {
 
 type TopOpportunity = {
   id: string;
+  trendId: string;
   score: number;
   status: string;
   topic: string;
@@ -63,6 +65,7 @@ const CARDS: Array<{ key: keyof DashboardCounts; label: string }> = [
 
 export function Dashboard() {
   const [state, setState] = useState<DashboardState>({ status: "loading" });
+  const navigate = useNavigate();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -123,20 +126,33 @@ export function Dashboard() {
                 Nenhuma tendência calculada ainda — faça uma busca em Tendências.
               </p>
             ) : (
-              <div className="mt-4 h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={state.data.topTrends} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" domain={[0, 100]} />
-                    <YAxis type="category" dataKey="topic" width={120} tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      formatter={(value: number) => [value, "Score"]}
-                      labelFormatter={(label: string) => label}
-                    />
-                    <Bar dataKey="trendScore" fill="#0f172a" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <>
+                <p className="mt-1 text-xs text-slate-400">
+                  Clique numa barra para ver a análise completa.
+                </p>
+                <div className="mt-4 h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={state.data.topTrends} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} />
+                      <YAxis type="category" dataKey="topic" width={120} tick={{ fontSize: 12 }} />
+                      <Tooltip
+                        formatter={(value: number) => [value, "Score"]}
+                        labelFormatter={(label: string) => label}
+                      />
+                      <Bar
+                        dataKey="trendScore"
+                        fill="#0f172a"
+                        radius={[0, 4, 4, 0]}
+                        style={{ cursor: "pointer" }}
+                        onClick={(barData: { payload?: TopTrend }) => {
+                          if (barData.payload) navigate(`/trends/${barData.payload.id}`);
+                        }}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
             )}
           </div>
 
@@ -150,21 +166,26 @@ export function Dashboard() {
             ) : (
               <ul className="mt-3 divide-y divide-slate-100">
                 {state.data.topOpportunities.map((opportunity) => (
-                  <li key={opportunity.id} className="flex items-center justify-between gap-3 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{opportunity.topic}</p>
-                      <p className="text-xs text-slate-500">{opportunity.regionCode}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${CLASSIFICATION_STYLES[opportunity.classification]}`}
-                      >
-                        {CLASSIFICATION_LABELS[opportunity.classification]}
-                      </span>
-                      <span className="text-sm font-semibold text-slate-700">
-                        {opportunity.score}
-                      </span>
-                    </div>
+                  <li key={opportunity.id}>
+                    <Link
+                      to={`/trends/${opportunity.trendId}`}
+                      className="flex items-center justify-between gap-3 py-3 hover:bg-slate-50"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">{opportunity.topic}</p>
+                        <p className="text-xs text-slate-500">{opportunity.regionCode}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${CLASSIFICATION_STYLES[opportunity.classification]}`}
+                        >
+                          {CLASSIFICATION_LABELS[opportunity.classification]}
+                        </span>
+                        <span className="text-sm font-semibold text-slate-700">
+                          {opportunity.score}
+                        </span>
+                      </div>
+                    </Link>
                   </li>
                 ))}
               </ul>
