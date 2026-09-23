@@ -1,5 +1,10 @@
 import type { PrismaClient, Video } from "@prisma/client";
-import { fetchPopularVideos, fetchVideosByIds } from "./client.js";
+import {
+  fetchPopularVideos,
+  fetchVideosByIds,
+  searchVideos,
+  type YoutubeApiVideoItem,
+} from "./client.js";
 import { mapYoutubeVideoItem } from "./mapper.js";
 import { persistVideos } from "./persist.js";
 
@@ -24,6 +29,28 @@ export function createYoutubeService({ apiKey, prisma }: YoutubeServiceConfig) {
     async refreshVideos(videoIds: string[]): Promise<Video[]> {
       const items = await fetchVideosByIds(apiKey, videoIds);
       return persistVideos(prisma, items.map(mapYoutubeVideoItem));
+    },
+
+    // Busca por palavra-chave: search.list (100 unidades — só usar quando
+    // videos.list não cobre) devolve só ids; um segundo videos.list (1
+    // unidade) busca snippet/estatísticas completos.
+    async searchTrendingVideos(
+      query: string,
+      regionCode?: string,
+      maxResults = 25,
+    ): Promise<Video[]> {
+      const results = await searchVideos(apiKey, { query, regionCode, maxResults });
+      const videoIds = results.map((r) => r.videoId);
+      const items = await fetchVideosByIds(apiKey, videoIds);
+
+      // videos.list não garante devolver na mesma ordem do "id" enviado —
+      // reordena pra preservar a relevância calculada pelo search.list.
+      const itemsById = new Map(items.map((item) => [item.id, item]));
+      const orderedItems = videoIds
+        .map((id) => itemsById.get(id))
+        .filter((item): item is YoutubeApiVideoItem => item !== undefined);
+
+      return persistVideos(prisma, orderedItems.map(mapYoutubeVideoItem));
     },
   };
 }
