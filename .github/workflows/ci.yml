@@ -60,6 +60,7 @@ jobs:
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://canalproart:canalproart@localhost:5432/canalproart?schema=public
+          JWT_SECRET: ci-test-only-secret-not-used-anywhere-else-0123456789
 
       - name: Build
         run: npm run build
