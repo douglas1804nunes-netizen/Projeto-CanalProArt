@@ -507,6 +507,52 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
   projeto semeado já com vídeo/roteiro/título/descrição — checklist
   totalmente verde, título e descrição corretos exibidos.
 
+### Upload para o YouTube (Fase 16)
+
+- `backend/src/youtube/publish.ts`: upload **multipart simples** (metadata
+  JSON + bytes do vídeo numa única requisição) pra `videos.insert`, não
+  upload resumível — mais simples de implementar corretamente e suficiente
+  pro teto de 500MB já imposto na Fase 13; resumível (com retomada em
+  falha de rede) fica pra quando a escala justificar (Fase 21+). O arquivo
+  inteiro é lido pra memória (`Buffer`) antes do upload — mesma lógica de
+  "não otimizar pra escala ainda" das decisões de storage da Fase 13.
+- `status.privacyStatus` sempre `"private"` — nunca publica publicamente
+  sem uma ação explícita do usuário fora do CanalProArt; o vídeo fica
+  acessível só pelo dono, que troca a visibilidade manualmente no YouTube
+  Studio quando quiser. `status.containsSyntheticMedia` vem direto do
+  `MediaUpload` (declarado na Fase 14), como já estava planejado desde a
+  Fase 4 (`docs/YOUTUBE.md`, seção 7).
+- `POST /api/content-projects/:id/publish` reforça em código os mesmos
+  pré-requisitos do checklist da Fase 15 — `status === "READY"` (não
+  `PUBLISHED` ainda, senão 400 "já publicado"), título e descrição
+  **selecionados** (não apenas gerados; esses dois não são cobertos pelo
+  guard de `READY` da Fase 14, que só olha `MediaUpload`), e a
+  `YoutubeAccount` informada existir e pertencer ao usuário.
+- **Todo resultado vira um `PublishedVideo`** — sucesso (`status:
+"PUBLISHED"`, com `youtubeVideoId`) ou falha (`status: "FAILED"`, sem
+  `youtubeVideoId`) — histórico completo de tentativas pra Fase 17, não só
+  dos sucessos. Em caso de sucesso, `ContentProject.status` vira
+  `PUBLISHED` e, se o projeto tinha uma `Opportunity` vinculada, ela vira
+  `CONVERTED` numa única transação — fecha o ciclo desenhado desde a Fase
+  9 (`NEW` → `IN_PROGRESS` na Fase 12 → `CONVERTED` aqui).
+- Frontend: seção "Publicar" em `ContentProjectPreviewPage.tsx` — busca os
+  canais conectados (`GET /api/youtube/accounts`, Fase 4), mostra um
+  seletor + botão quando o projeto está `READY` e há pelo menos um canal;
+  senão mostra o que falta (marcar como pronto, ou conectar um canal com
+  link pra `/youtube`). Depois de publicar, mostra o link pro vídeo no
+  YouTube.
+- **Testado sem credenciais OAuth reais** (mesma situação das Fases 4/5):
+  guarda de autenticação, validação, e cada pré-requisito faltando
+  (status errado, sem título/descrição selecionados, conta de outro
+  usuário) — nenhum desses caminhos chega perto da chamada de rede.
+  Validado com uma chamada de rede **de verdade** via curl e ao vivo no
+  navegador: com um `access_token` fake (decriptografa mas não é válido
+  pro Google), a chamada a `videos.insert` falha como esperado (401 do
+  Google), a rota responde 502 de forma limpa, cria um `PublishedVideo`
+  com `status: "FAILED"` e **não** marca o projeto como `PUBLISHED` —
+  confirmado por query direta no banco nos dois casos (curl e clique real
+  no botão da UI).
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -601,7 +647,7 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
 | 13   | Upload de mídia (vídeo próprio/autorizado) ✅                                                                 |
 | 14   | Validação de direitos ✅                                                                                      |
 | 15   | Preview ✅                                                                                                    |
-| 16   | Upload para o YouTube                                                                                         |
+| 16   | Upload para o YouTube ✅                                                                                      |
 | 17   | Histórico de publicações                                                                                      |
 | 18   | Testes E2E + revisão de cobertura (testes unitários/integração já são escritos a cada fase — ver nota abaixo) |
 | 19   | Segurança avançada (auditoria, quota manager, revisão do rate limit/helmet da Fase 3)                         |
