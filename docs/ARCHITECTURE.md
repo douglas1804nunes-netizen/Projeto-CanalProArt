@@ -553,6 +553,27 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
   confirmado por query direta no banco nos dois casos (curl e clique real
   no botão da UI).
 
+### Histórico de publicações (Fase 17)
+
+- Fase leve — nenhuma tabela nova, nenhuma chamada de rede. `POST
+.../publish` (Fase 16) já cria um `PublishedVideo` em **todo**
+  resultado (sucesso ou falha); `GET /api/published-videos` só lê,
+  ordenado por `createdAt desc`. `PublishedVideo` não tem `userId`
+  próprio — o filtro passa por `contentProject.userId`, mesmo padrão já
+  usado em `dashboard.ts` (Fase 9) pra tabelas sem `userId` direto.
+- Frontend: `PublishedVideosPage.tsx` (rota `/videos`, substituindo o
+  placeholder que já existia desde a Fase 1) lista título do projeto,
+  canal, status (badge) e — só quando `PUBLISHED` — um link pro vídeo no
+  YouTube. Falhas aparecem na lista igual sucessos (sem
+  `youtubeVideoId`), não só os sucessos — é histórico de tentativas, não
+  uma vitrine.
+- **Testado sem rede**: agregação (título do projeto + canal juntos na
+  mesma linha), isolamento por usuário, inclusão de falhas (não só
+  sucesso), lista vazia — tudo com dado fabricado via Prisma. Validado
+  ao vivo no navegador com um sucesso e uma falha semeados: os dois
+  aparecem, o link "Ver no YouTube" só no sucesso e aponta pro
+  `youtubeVideoId` certo.
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -648,7 +669,7 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
 | 14   | Validação de direitos ✅                                                                                      |
 | 15   | Preview ✅                                                                                                    |
 | 16   | Upload para o YouTube ✅                                                                                      |
-| 17   | Histórico de publicações                                                                                      |
+| 17   | Histórico de publicações ✅                                                                                   |
 | 18   | Testes E2E + revisão de cobertura (testes unitários/integração já são escritos a cada fase — ver nota abaixo) |
 | 19   | Segurança avançada (auditoria, quota manager, revisão do rate limit/helmet da Fase 3)                         |
 | 20   | Deploy no Render                                                                                              |
