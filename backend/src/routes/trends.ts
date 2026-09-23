@@ -1,7 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import type { Video, VideoMetric } from "@prisma/client";
 import { z } from "zod";
-import { createYoutubeService } from "@canalproart/services";
+import {
+  calculateEngagementRate,
+  calculateRecencyScore,
+  calculateVelocity,
+  createYoutubeService,
+} from "@canalproart/services";
 import { env } from "../env.js";
 import { prisma } from "../prisma.js";
 
@@ -22,7 +27,11 @@ const searchBodySchema = z.object({
   regionCode: z.string().length(2, "regionCode precisa ter 2 letras (ex.: BR)").default("BR"),
 });
 
-function serializeVideo(video: Video, metric: VideoMetric | undefined) {
+// metrics[0] é o mais recente (a query que preenche isso ordena por
+// fetchedAt desc) — os demais (se houver) alimentam calculateVelocity.
+function serializeVideo(video: Video, metrics: VideoMetric[]) {
+  const latest = metrics[0];
+
   return {
     id: video.id,
     youtubeVideoId: video.youtubeVideoId,
@@ -32,13 +41,17 @@ function serializeVideo(video: Video, metric: VideoMetric | undefined) {
     publishedAt: video.publishedAt,
     durationSeconds: video.durationSeconds,
     // BigInt não serializa em JSON — vira string.
-    viewCount: metric ? metric.viewCount.toString() : null,
-    likeCount: metric ? metric.likeCount.toString() : null,
-    commentCount: metric ? metric.commentCount.toString() : null,
+    viewCount: latest ? latest.viewCount.toString() : null,
+    likeCount: latest ? latest.likeCount.toString() : null,
+    commentCount: latest ? latest.commentCount.toString() : null,
+    // Fase 7: métricas derivadas — ver services/src/youtube/metrics.ts.
+    velocity: calculateVelocity(metrics), // views/hora; null com só 1 snapshot
+    engagementRate: latest ? calculateEngagementRate(latest) : 0,
+    recencyScore: calculateRecencyScore(video.publishedAt),
   };
 }
 
-async function attachLatestMetrics(videos: Video[]) {
+async function attachMetrics(videos: Video[]) {
   if (videos.length === 0) return [];
 
   const metrics = await prisma.videoMetric.findMany({
@@ -46,14 +59,17 @@ async function attachLatestMetrics(videos: Video[]) {
     orderBy: { fetchedAt: "desc" },
   });
 
-  const latestByVideoId = new Map<string, VideoMetric>();
+  const metricsByVideoId = new Map<string, VideoMetric[]>();
   for (const metric of metrics) {
-    if (!latestByVideoId.has(metric.videoId)) {
-      latestByVideoId.set(metric.videoId, metric);
+    const list = metricsByVideoId.get(metric.videoId);
+    if (list) {
+      list.push(metric);
+    } else {
+      metricsByVideoId.set(metric.videoId, [metric]);
     }
   }
 
-  return videos.map((video) => serializeVideo(video, latestByVideoId.get(video.id)));
+  return videos.map((video) => serializeVideo(video, metricsByVideoId.get(video.id) ?? []));
 }
 
 export async function trendRoutes(app: FastifyInstance) {
@@ -88,7 +104,7 @@ export async function trendRoutes(app: FastifyInstance) {
       });
 
       if (cached) {
-        const videos = await attachLatestMetrics(cached.searchVideos.map((sv) => sv.video));
+        const videos = await attachMetrics(cached.searchVideos.map((sv) => sv.video));
         return reply.send({
           searchId: cached.id,
           cached: true,
@@ -128,7 +144,7 @@ export async function trendRoutes(app: FastifyInstance) {
         });
       }
 
-      const serializedVideos = await attachLatestMetrics(videos);
+      const serializedVideos = await attachMetrics(videos);
       return reply.send({
         searchId: search.id,
         cached: false,
