@@ -7,6 +7,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { YoutubePage } from "./pages/YoutubePage";
 
 export default function App() {
   return (
@@ -28,7 +29,7 @@ export default function App() {
               element={<PlaceholderPage title="Conteúdos" phase="Fase 12" />}
             />
             <Route path="/videos" element={<PlaceholderPage title="Vídeos" phase="Fase 17" />} />
-            <Route path="/youtube" element={<PlaceholderPage title="YouTube" phase="Fase 4" />} />
+            <Route path="/youtube" element={<YoutubePage />} />
             <Route
               path="/settings"
               element={<PlaceholderPage title="Configurações" phase="uma fase futura" />}
