@@ -8,3 +8,4 @@ export * from "./youtube/mapper.js";
 export * from "./youtube/persist.js";
 export * from "./youtube/service.js";
 export * from "./youtube/metrics.js";
+export * from "./youtube/trendScore.js";
