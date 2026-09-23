@@ -1,7 +1,17 @@
-// Fase 1 (Arquitetura): apenas datasource + generator, para validar a conexão
-// com o Postgres via Prisma Client. Os modelos (users, youtube_accounts, videos,
-// trends, trend_videos, opportunities, content_projects, scripts, generated_titles,
-// generated_descriptions, published_videos, audit_logs, ...) entram na Fase 2.
+// Fase 2: schema completo (14 tabelas do briefing). Convenções seguidas em
+// todo o schema (ver docs/ARCHITECTURE.md → "Diretrizes para o schema da
+// Fase 2"):
+// - IDs cuid() (nunca inteiro auto-incremental exposto em rota pública).
+// - createdAt/updatedAt em toda tabela.
+// - fetchedAt nas tabelas com dados vindos da YouTube Data API (videos,
+//   video_metrics, trends) — ver docs/YOUTUBE.md → "Retenção e atualização
+//   de dados" para a rotina de expurgo/atualização (~30 dias).
+// - Enums para campos de domínio fechado em vez de String solta.
+// - Índice em toda foreign key e em coluna usada para filtro/ordenação.
+// - accessToken/refreshToken em YoutubeAccount são criptografados (AES-256-GCM,
+//   TOKEN_ENCRYPTION_KEY) pela aplicação a partir da Fase 4 — aqui só a coluna;
+//   a lógica de cripto/decripto não existe ainda (Fase 1/2 não implementam auth
+//   nem OAuth de verdade).
 
 generator client {
   provider = "prisma-client-js"
@@ -10,4 +20,312 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// --- Enums -------------------------------------------------------------
+
+enum RightsStatus {
+  ORIGINAL
+  AUTHORIZED
+  LICENSED
+  PUBLIC_DOMAIN
+}
+
+enum TrendClassification {
+  RISING
+  HOT
+  STABLE
+  DECLINING
+}
+
+enum OpportunityStatus {
+  NEW
+  IN_PROGRESS
+  DISMISSED
+  CONVERTED
+}
+
+enum ContentProjectStatus {
+  DRAFT
+  IN_PROGRESS
+  READY
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PublishedVideoStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+// --- Auth / YouTube ------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  youtubeAccounts YoutubeAccount[]
+  searches        Search[]
+  trends          Trend[]
+  opportunities   Opportunity[]
+  contentProjects ContentProject[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model YoutubeAccount {
+  id           String   @id @default(cuid())
+  userId       String
+  channelId    String   @unique
+  channelTitle String
+  // Criptografados (AES-256-GCM) pela aplicação antes de gravar — ver nota
+  // no topo do arquivo.
+  accessToken  String
+  refreshToken String
+  scopes       String[]
+  expiresAt    DateTime
+  connectedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishedVideos PublishedVideo[]
+
+  @@index([userId])
+  @@map("youtube_accounts")
+}
+
+// --- Descoberta de tendências ------------------------------------------
+
+model Search {
+  id          String   @id @default(cuid())
+  userId      String
+  query       String?
+  regionCode  String
+  categoryId  String?
+  resultCount Int      @default(0)
+  fetchedAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([fetchedAt])
+  @@map("searches")
+}
+
+model Video {
+  id              String   @id @default(cuid())
+  youtubeVideoId  String   @unique
+  channelId       String
+  channelTitle    String
+  title           String
+  description     String
+  publishedAt     DateTime
+  thumbnailUrl    String
+  durationSeconds Int
+  categoryId      String?
+  tags            String[]
+  fetchedAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  metrics     VideoMetric[]
+  trendVideos TrendVideo[]
+
+  @@index([channelId])
+  @@index([publishedAt])
+  @@index([fetchedAt])
+  @@map("videos")
+}
+
+model VideoMetric {
+  id           String   @id @default(cuid())
+  videoId      String
+  viewCount    BigInt
+  likeCount    BigInt
+  commentCount BigInt
+  fetchedAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, fetchedAt])
+  @@index([fetchedAt])
+  @@map("video_metrics")
+}
+
+model Trend {
+  id             String              @id @default(cuid())
+  userId         String
+  topic          String
+  regionCode     String
+  trendScore     Float
+  classification TrendClassification
+  fetchedAt      DateTime
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trendVideos   TrendVideo[]
+  opportunities Opportunity[]
+
+  @@index([userId])
+  @@index([trendScore])
+  @@index([fetchedAt])
+  @@map("trends")
+}
+
+model TrendVideo {
+  id        String   @id @default(cuid())
+  trendId   String
+  videoId   String
+  rank      Int
+  createdAt DateTime @default(now())
+
+  trend Trend @relation(fields: [trendId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([trendId, videoId])
+  @@index([videoId])
+  @@map("trend_videos")
+}
+
+// --- Oportunidades e produção de conteúdo --------------------------------
+
+model Opportunity {
+  id        String            @id @default(cuid())
+  userId    String
+  trendId   String
+  score     Float
+  status    OpportunityStatus @default(NEW)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trend           Trend            @relation(fields: [trendId], references: [id], onDelete: Cascade)
+  contentProjects ContentProject[]
+
+  @@index([userId])
+  @@index([trendId])
+  @@index([status])
+  @@map("opportunities")
+}
+
+model ContentProject {
+  id            String               @id @default(cuid())
+  userId        String
+  opportunityId String?
+  title         String
+  status        ContentProjectStatus @default(DRAFT)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  scripts               Script[]
+  generatedTitles       GeneratedTitle[]
+  generatedDescriptions GeneratedDescription[]
+  publishedVideos       PublishedVideo[]
+
+  @@index([userId])
+  @@index([opportunityId])
+  @@index([status])
+  @@map("content_projects")
+}
+
+model Script {
+  id               String   @id @default(cuid())
+  contentProjectId String
+  content          String
+  version          Int      @default(1)
+  aiProvider       String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  contentProject ContentProject @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+
+  @@index([contentProjectId])
+  @@map("scripts")
+}
+
+model GeneratedTitle {
+  id               String   @id @default(cuid())
+  contentProjectId String
+  title            String
+  selected         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  contentProject ContentProject @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+
+  @@index([contentProjectId])
+  @@map("generated_titles")
+}
+
+model GeneratedDescription {
+  id               String   @id @default(cuid())
+  contentProjectId String
+  description      String
+  selected         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  contentProject ContentProject @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+
+  @@index([contentProjectId])
+  @@map("generated_descriptions")
+}
+
+// --- Publicação ------------------------------------------------------------
+
+model PublishedVideo {
+  id                     String               @id @default(cuid())
+  contentProjectId       String
+  youtubeAccountId       String
+  youtubeVideoId         String?
+  rightsStatus           RightsStatus
+  containsSyntheticMedia Boolean              @default(false)
+  status                 PublishedVideoStatus @default(PENDING)
+  publishedAt            DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  contentProject ContentProject @relation(fields: [contentProjectId], references: [id], onDelete: Restrict)
+  youtubeAccount YoutubeAccount @relation(fields: [youtubeAccountId], references: [id], onDelete: Restrict)
+
+  @@index([contentProjectId])
+  @@index([youtubeAccountId])
+  @@index([status])
+  @@index([publishedAt])
+  @@map("published_videos")
+}
+
+// --- Auditoria ------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
 }
