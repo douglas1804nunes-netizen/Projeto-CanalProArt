@@ -12,6 +12,7 @@ export async function opportunityRoutes(app: FastifyInstance) {
     return reply.send(
       opportunities.map((opportunity) => ({
         id: opportunity.id,
+        trendId: opportunity.trendId,
         score: opportunity.score,
         status: opportunity.status,
         createdAt: opportunity.createdAt,

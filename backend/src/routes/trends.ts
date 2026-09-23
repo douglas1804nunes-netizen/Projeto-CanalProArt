@@ -193,7 +193,9 @@ export async function trendRoutes(app: FastifyInstance) {
           searchId: cached.id,
           cached: true,
           fetchedAt: cached.fetchedAt,
-          trend: trend ? { score: trend.trendScore, classification: trend.classification } : null,
+          trend: trend
+            ? { id: trend.id, score: trend.trendScore, classification: trend.classification }
+            : null,
           videos,
         });
       }
@@ -236,7 +238,7 @@ export async function trendRoutes(app: FastifyInstance) {
         searchId: search.id,
         cached: false,
         fetchedAt,
-        trend: { score: trend.trendScore, classification: trend.classification },
+        trend: { id: trend.id, score: trend.trendScore, classification: trend.classification },
         videos: serializedVideos,
       });
     },
@@ -260,5 +262,52 @@ export async function trendRoutes(app: FastifyInstance) {
       take: 20,
     });
     return reply.send(trends);
+  });
+
+  // Fase 10: página de análise — detalha um Trend específico com o score
+  // individual de cada vídeo (a "composição" do trendScore) e o histórico de
+  // scores do mesmo tópico/região, pra visualizar a trajetória ao longo do
+  // tempo. Recalcula velocity/engagementRate/recencyScore com os dados
+  // atuais (mesma lógica de attachMetrics usada na busca) em vez de
+  // persistir o score por vídeo — mantém uma única fonte de verdade pro
+  // cálculo, e recencyScore depende de "agora", não do momento da busca.
+  app.get("/api/trends/:id", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const trend = await prisma.trend.findUnique({
+      where: { id },
+      include: { trendVideos: { orderBy: { rank: "asc" }, include: { video: true } } },
+    });
+
+    if (!trend || trend.userId !== request.user.sub) {
+      return reply.status(404).send({ error: "Tendência não encontrada" });
+    }
+
+    const videos = await attachMetrics(trend.trendVideos.map((tv) => tv.video));
+    const videosWithScore = videos.map((video) => ({
+      ...video,
+      videoScore: calculateVideoScore({
+        velocity: video.velocity,
+        engagementRate: video.engagementRate,
+        recencyScore: video.recencyScore,
+      }),
+    }));
+
+    const history = await prisma.trend.findMany({
+      where: { userId: trend.userId, topic: trend.topic, regionCode: trend.regionCode },
+      orderBy: { fetchedAt: "asc" },
+      select: { id: true, fetchedAt: true, trendScore: true, classification: true },
+    });
+
+    return reply.send({
+      id: trend.id,
+      topic: trend.topic,
+      regionCode: trend.regionCode,
+      trendScore: trend.trendScore,
+      classification: trend.classification,
+      fetchedAt: trend.fetchedAt,
+      videos: videosWithScore,
+      history,
+    });
   });
 }

@@ -63,6 +63,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       })),
       topOpportunities: topOpportunities.map((opportunity) => ({
         id: opportunity.id,
+        trendId: opportunity.trendId,
         score: opportunity.score,
         status: opportunity.status,
         topic: opportunity.trend.topic,

@@ -187,8 +187,10 @@ describe("Rotas de tendências (Fases 6-8)", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const body = response.json() as { trend: { score: number; classification: string } | null };
-    expect(body.trend).toEqual({ score: 42, classification: "RISING" });
+    const body = response.json() as {
+      trend: { id: string; score: number; classification: string } | null;
+    };
+    expect(body.trend).toEqual({ id: trend.id, score: 42, classification: "RISING" });
   });
 
   it("GET /api/trends exige autenticação", async () => {
@@ -261,6 +263,117 @@ describe("Rotas de tendências (Fases 6-8)", () => {
 
     expect(searchesA.some((s) => s.id === search.id)).toBe(true);
     expect(searchesB.some((s) => s.id === search.id)).toBe(false);
+  });
+
+  // Fase 10: página de análise — GET /api/trends/:id.
+  describe("GET /api/trends/:id", () => {
+    it("exige autenticação", async () => {
+      const response = await app.inject({ method: "GET", url: "/api/trends/algum-id" });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("devolve 404 pra id inexistente", async () => {
+      const { token } = await registerUser("detail-missing");
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/api/trends/id-que-nao-existe",
+        cookies: { token },
+      });
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    it("devolve 404 pra trend de outro usuário", async () => {
+      const { userId: userIdA } = await registerUser("detail-other-a");
+      const { token: tokenB } = await registerUser("detail-other-b");
+
+      const trend = await prisma.trend.create({
+        data: {
+          userId: userIdA,
+          topic: "so-do-usuario-a",
+          regionCode: "BR",
+          trendScore: 60,
+          classification: "STABLE",
+          fetchedAt: new Date(),
+        },
+      });
+      createdTrendIds.push(trend.id);
+
+      const response = await app.inject({
+        method: "GET",
+        url: `/api/trends/${trend.id}`,
+        cookies: { token: tokenB },
+      });
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    it("devolve o trend com o score de cada vídeo e o histórico do tópico/região", async () => {
+      const { token, userId } = await registerUser("detail-full");
+
+      const videoA = await seedVideo(`detail-a-${Date.now()}`, 10000n);
+      const videoB = await seedVideo(`detail-b-${Date.now()}`, 20000n);
+
+      const olderTrend = await prisma.trend.create({
+        data: {
+          userId,
+          topic: "analise-completa",
+          regionCode: "BR",
+          trendScore: 30,
+          classification: "STABLE",
+          fetchedAt: new Date("2026-01-01T00:00:00Z"),
+        },
+      });
+      createdTrendIds.push(olderTrend.id);
+
+      const trend = await prisma.trend.create({
+        data: {
+          userId,
+          topic: "analise-completa",
+          regionCode: "BR",
+          trendScore: 75,
+          classification: "RISING",
+          fetchedAt: new Date("2026-02-01T00:00:00Z"),
+        },
+      });
+      createdTrendIds.push(trend.id);
+      await prisma.trendVideo.createMany({
+        data: [
+          { trendId: trend.id, videoId: videoA.id, rank: 0 },
+          { trendId: trend.id, videoId: videoB.id, rank: 1 },
+        ],
+      });
+
+      const response = await app.inject({
+        method: "GET",
+        url: `/api/trends/${trend.id}`,
+        cookies: { token },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json() as {
+        id: string;
+        topic: string;
+        trendScore: number;
+        classification: string;
+        videos: Array<{ id: string; videoScore: number }>;
+        history: Array<{ id: string; trendScore: number }>;
+      };
+
+      expect(body.id).toBe(trend.id);
+      expect(body.topic).toBe("analise-completa");
+      expect(body.trendScore).toBe(75);
+      // preserva o rank (videoA antes de videoB) e cada vídeo tem seu score
+      expect(body.videos).toHaveLength(2);
+      expect(body.videos[0].id).toBe(videoA.id);
+      expect(body.videos[1].id).toBe(videoB.id);
+      expect(typeof body.videos[0].videoScore).toBe("number");
+      // histórico em ordem cronológica, incluindo o trend atual
+      expect(body.history.map((h) => h.id)).toEqual([olderTrend.id, trend.id]);
+      expect(body.history[0].trendScore).toBe(30);
+      expect(body.history[1].trendScore).toBe(75);
+    });
   });
 
   // Fase 9: testa maybeCreateOpportunity diretamente, sem passar pelo
