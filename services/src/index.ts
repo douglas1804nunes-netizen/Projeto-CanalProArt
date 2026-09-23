@@ -1,5 +1,4 @@
-// Workspace compartilhado entre backend/ e workers/. A partir da Fase 11
-// este pacote também passa a exportar o AIProvider — ainda não existe.
+// Workspace compartilhado entre backend/ e workers/ (a partir da Fase 21+).
 
 export const SERVICES_PACKAGE_VERSION = "0.1.0";
 
@@ -9,3 +8,4 @@ export * from "./youtube/persist.js";
 export * from "./youtube/service.js";
 export * from "./youtube/metrics.js";
 export * from "./youtube/trendScore.js";
+export * from "./ai/index.js";

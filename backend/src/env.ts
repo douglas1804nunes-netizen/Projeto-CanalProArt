@@ -60,6 +60,10 @@ const envSchema = z
         "YOUTUBE_REDIRECT_URI deve ser uma URL válida (ex.: http://localhost:3000/api/youtube/callback)",
       ),
     YOUTUBE_API_KEY: z.string().min(1, "YOUTUBE_API_KEY é obrigatório (ver docs/YOUTUBE.md)"),
+    AI_PROVIDER: z.string().min(1).default("anthropic"),
+    ANTHROPIC_API_KEY: z
+      .string()
+      .min(1, "ANTHROPIC_API_KEY é obrigatório (ver docs/ENVIRONMENT.md)"),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === "production" && !value.FRONTEND_URL) {
