@@ -64,6 +64,39 @@ dependências de todos os pacotes.
   `RequireAuth` (redireciona pra `/login` se `GET /api/auth/me` não
   autenticar) — ver `src/auth/`.
 
+### YouTube OAuth (Fase 4)
+
+- Fluxo padrão de authorization code: `GET /api/youtube/connect` (autenticado)
+  gera um `state` aleatório, guarda num cookie httpOnly de 10 min e redireciona
+  pro Google; `GET /api/youtube/callback` confere o `state` contra o cookie
+  (proteção CSRF) antes de trocar o `code` pelos tokens — ver `src/youtube/`.
+- `access_type=offline` + `prompt=consent` na URL de autorização: sem isso o
+  Google só manda `refresh_token` na primeira autorização, não em
+  re-consentimentos — se não vier, a Fase 20 (deploy) quebraria em produção
+  de forma difícil de depurar.
+- Tokens sempre criptografados (AES-256-GCM, `TOKEN_ENCRYPTION_KEY` — ver
+  `src/youtube/crypto.ts`) antes de gravar no banco, como já estava definido
+  desde a Fase 2.
+- Um canal do YouTube só pode estar conectado a um usuário CanalProArt por
+  vez (`channelId` é `@unique`); o callback rejeita com 409 se outro usuário
+  já tiver conectado aquele canal, em vez de reatribuir silenciosamente.
+- `src/youtube/tokens.ts` (`getValidAccessToken`) renova o `access_token`
+  via `refresh_token` quando está perto de expirar — usado a partir da Fase 5
+  (`YouTubeService`), que ainda não existe.
+- Logger: `code`/`state`/`access_token`/`refresh_token` são removidos da
+  query string antes de logar `req.url` (serializer customizado em
+  `app.ts`) — o `redact` do pino só apaga campos inteiros de um objeto, não
+  alcança substrings dentro de uma URL.
+- **Testado sem credenciais reais do Google**: guarda de autenticação,
+  validação de `state` (CSRF), isolamento por usuário (não dá pra desconectar
+  conta de outro usuário) e o round-trip de criptografia — ver
+  `src/routes/youtube.test.ts` e `src/youtube/crypto.test.ts`. A troca de
+  `code` por tokens contra a API real do Google **não** foi validada (exige
+  Client ID/Secret reais do Google Cloud Console — ver docs/YOUTUBE.md);
+  validado manualmente que o redirect para `accounts.google.com` é bem
+  formado (Google responde `invalid_client` com credenciais placeholder, como
+  esperado).
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -84,8 +117,9 @@ dependências de todos os pacotes.
   `trend_videos`, `opportunities`, `content_projects`, `scripts`,
   `generated_titles`, `generated_descriptions`, `published_videos`,
   `audit_logs`) implementado na **Fase 2** (`prisma/schema.prisma` +
-  migration `prisma/migrations/20260923020625_init_schema`). Nenhuma rota
-  usa esses modelos ainda — isso é a Fase 3 em diante.
+  migration `prisma/migrations/20260923020625_init_schema`). `User` em uso
+  desde a Fase 3 (auth) e `YoutubeAccount` desde a Fase 4 (OAuth) — os
+  demais modelos ainda não têm rota.
 
 ### Diretrizes seguidas no schema da Fase 2
 
@@ -139,7 +173,7 @@ dependências de todos os pacotes.
 | 1    | **Arquitetura** (monorepo, Docker, env, health check) ✅                                                      |
 | 2    | PostgreSQL + Prisma (schema completo) ✅                                                                      |
 | 3    | Autenticação (cadastro/login/JWT) + `@fastify/helmet` e `@fastify/rate-limit` ✅                              |
-| 4    | YouTube OAuth (connect/callback/refresh/disconnect)                                                           |
+| 4    | YouTube OAuth (connect/callback/refresh/disconnect) ✅                                                        |
 | 5    | YouTube Data API (`YouTubeService`)                                                                           |
 | 6    | Pesquisa de tendências (`/trends`)                                                                            |
 | 7    | Métricas (velocidade/engajamento/recência/volume)                                                             |

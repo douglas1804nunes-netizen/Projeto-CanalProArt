@@ -10,8 +10,8 @@ através da API oficial do YouTube.
 > públicas. Toda publicação exige um vídeo enviado pelo próprio usuário com
 > direitos declarados (ORIGINAL, AUTHORIZED, LICENSED ou PUBLIC_DOMAIN).
 
-**Status atual: Fase 3 — Autenticação (cadastro/login/JWT).** Veja o
-roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+**Status atual: Fase 4 — YouTube OAuth (connect/callback/refresh/disconnect).**
+Veja o roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack
 
@@ -28,12 +28,21 @@ roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Como rodar localmente
 
-1. Copie o arquivo de ambiente e ajuste se necessário (os valores padrão já
-   funcionam com o `docker-compose.yml`):
+1. Copie o arquivo de ambiente (os valores padrão já funcionam com o
+   `docker-compose.yml`), e gere `JWT_SECRET`/`TOKEN_ENCRYPTION_KEY` — o
+   backend não sobe sem eles:
 
    ```bash
    cp .env.example .env
+   # preencha JWT_SECRET e TOKEN_ENCRYPTION_KEY no .env, cada um com:
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
+
+   `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET`/`YOUTUBE_REDIRECT_URI` também
+   são obrigatórios a partir da Fase 4 — qualquer valor não vazio deixa o
+   backend subir, mas só com credenciais reais do Google Cloud Console
+   (veja [docs/YOUTUBE.md](docs/YOUTUBE.md)) o botão "Conectar YouTube"
+   funciona de ponta a ponta.
 
 2. Instale as dependências de todos os workspaces (raiz, `backend`, `frontend`,
    `services`, `workers`):
