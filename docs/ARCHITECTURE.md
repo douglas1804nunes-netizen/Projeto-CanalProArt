@@ -350,6 +350,59 @@ dependências de todos os pacotes.
   placeholder do `.env`: a rota responde 502 de forma limpa (sem derrubar o
   processo) quando a Anthropic API rejeita a chave.
 
+### Content Projects (Fase 12)
+
+- `backend/src/routes/contentProjects.ts` fecha o ciclo desenhado desde a
+  Fase 2: `ContentProject` (opcionalmente ligado a uma `Opportunity`) reúne
+  `Script`/`GeneratedTitle`/`GeneratedDescription`, todos gerados pelo
+  `AIProvider` da Fase 11 e agora persistidos de verdade.
+  `POST /api/content-projects` aceita um `opportunityId` opcional; quando
+  informado e a `Opportunity` ainda está `NEW`, ela passa pra
+  `IN_PROGRESS` — sinaliza "isso já virou trabalho" sem seria cedo demais
+  marcar `CONVERTED` (isso fica pra quando existir um `PublishedVideo` de
+  verdade, Fase 17).
+- `POST .../generate-script` usa o `title` do projeto como "ideia" por
+  padrão (ou um `idea` explícito no body) e grava uma nova versão
+  (`version` incremental, nunca sobrescreve a anterior — histórico de
+  tentativas fica no banco). `POST .../generate-titles` e
+  `.../generate-description` usam o roteiro mais recente como contexto pra
+  gerar algo coerente com o que já foi escrito, não genérico demais;
+  `generate-description` responde 400 (não 502) se ainda não existe
+  nenhum roteiro — não é erro da IA, é um pré-requisito do fluxo que a UI
+  já impede (botão desabilitado).
+- Seleção de título/descrição (`POST .../titles/:id/select`,
+  `.../descriptions/:id/select`) é "rádio": marca o escolhido e desmarca
+  os outros do mesmo projeto numa transação — nunca dois `selected: true`
+  ao mesmo tempo.
+- Frontend: `ContentProjectsPage.tsx` (lista + criação por título) e
+  `ContentProjectDetailPage.tsx` (roteiro/títulos/descrição, cada um com
+  botão de gerar e — pra título/descrição — clique pra selecionar, com
+  destaque visual do selecionado). `OpportunitiesPage.tsx` ganhou um botão
+  "Criar conteúdo" por oportunidade (esconde só quando `DISMISSED`) que
+  cria o projeto já vinculado e navega direto pra ele — fecha o caminho
+  Dashboard → Oportunidade → Conteúdo sem precisar copiar/colar nada
+  manualmente.
+- **Testado sem credenciais reais da Anthropic**: CRUD do projeto,
+  transição da `Opportunity` pra `IN_PROGRESS`, seleção exclusiva de
+  título/descrição, 400 de `generate-description` sem roteiro, guarda de
+  autenticação/isolamento por usuário em todas as rotas — tudo com dado
+  fabricado via Prisma, sem precisar da chamada de rede de verdade.
+  Validado ao vivo no navegador com um projeto semeado direto no banco:
+  troca de título selecionado persiste no Postgres (não só otimista no
+  client), `POST .../generate-script` com a chave placeholder mostra
+  "Falha ao gerar roteiro com IA" na UI sem corromper o estado (roteiro
+  anterior continua visível), e o botão "Criar conteúdo" da
+  `OpportunitiesPage` cria o projeto, vincula a `opportunityId` e marca a
+  oportunidade como `IN_PROGRESS` — confirmado por query direta no banco,
+  não só pela resposta da API.
+- **Nota de teste**: o arquivo `contentProjects.test.ts` reaproveita um
+  único usuário (`mainUser`) pra todo teste que não é especificamente
+  sobre isolamento entre dois usuários — o rate limit de
+  `POST /api/auth/register` (20/min, Fase 3) estourava com ~20 registros
+  novos num arquivo desse tamanho, e a falha aparecia de um jeito confuso
+  (erro de validação do Prisma por causa de um `id` `undefined`, não um
+  429 óbvio) até eu rastrear a causa raiz.
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -435,7 +488,7 @@ dependências de todos os pacotes.
 | 9    | Dashboard (cards, gráfico, top oportunidades) ✅                                                              |
 | 10   | Página de análise de tendência ✅                                                                             |
 | 11   | IA (`AIProvider`: ideias/roteiro/títulos/descrição) ✅                                                        |
-| 12   | Content Projects                                                                                              |
+| 12   | Content Projects ✅                                                                                           |
 | 13   | Upload de mídia (vídeo próprio/autorizado)                                                                    |
 | 14   | Validação de direitos                                                                                         |
 | 15   | Preview                                                                                                       |
