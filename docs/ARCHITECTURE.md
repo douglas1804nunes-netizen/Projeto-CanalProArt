@@ -403,6 +403,48 @@ dependências de todos os pacotes.
   (erro de validação do Prisma por causa de um `id` `undefined`, não um
   429 óbvio) até eu rastrear a causa raiz.
 
+### Upload de mídia (Fase 13)
+
+- **Decisão de armazenamento**: disco local (`backend/uploads/`, gitignored)
+  em vez de object storage na nuvem — escolha deliberada com o usuário pra
+  não depender de uma conta/bucket que ele ainda não tem (mesma situação do
+  YouTube OAuth na Fase 4 e do Anthropic na Fase 11). **Isso não sobrevive a
+  um redeploy no Render** (filesystem efêmero) — pendência explícita pra
+  revisitar antes da Fase 20 (deploy), quando provavelmente vira um
+  requisito real migrar pra S3/R2/similar.
+- `MediaUpload` é **1:1 com `ContentProject`** (`contentProjectId @unique`)
+  — diferente de `Script` (que versiona cada tentativa), um projeto só
+  precisa do upload mais recente; reenviar um vídeo apaga o arquivo antigo
+  do disco e substitui a linha no banco (`upsert`) em vez de acumular
+  histórico. `rightsStatus`/`containsSyntheticMedia` ficam de fora do
+  modelo por enquanto — entram na Fase 14 (Validação de direitos), que é a
+  fase seguinte de propósito; declarar isso antes de existir um arquivo de
+  verdade não faria sentido.
+- `backend/src/routes/media.ts`: `POST .../media` (upload, via
+  `@fastify/multipart`, limite de 500MB configurado globalmente em
+  `app.ts`), `DELETE .../media` e `GET .../media/file` (streaming
+  autenticado — não é uma URL pública/assinada; o `<video>` do frontend
+  manda o cookie httpOnly normalmente por ser uma requisição de mesma
+  origem). Só aceita `mimetype` começando com `video/`; nome do arquivo no
+  disco é gerado (`randomUUID() + nome sanitizado`), nunca usa o filename
+  enviado pelo cliente diretamente no path (proteção contra path
+  traversal).
+- Frontend: nova seção "Vídeo" no topo de `ContentProjectDetailPage.tsx`
+  — `<video controls>` apontando pra `/api/content-projects/:id/media/file`
+  quando existe upload, input de arquivo + botão "Enviar vídeo"/"Substituir
+  vídeo" (via `FormData`, sem `Content-Type` manual — o browser define o
+  boundary do multipart sozinho), botão "Remover".
+- **Testado com upload real** (não só rede simulada): `media.test.ts`
+  monta o corpo multipart manualmente (boundary + `Content-Disposition`) e
+  testa upload/substituição/download/remoção fim a fim contra o Postgres e
+  o disco de verdade — sem precisar de nenhuma credencial externa,
+  diferente das Fases 5/11 (aqui não tem API de terceiro envolvida).
+  Validado também via curl com um arquivo real fora dos testes (confirma
+  que o multipart funciona pela rede de verdade, não só via
+  `app.inject()`) e ao vivo no navegador: player renderiza, "Remover" some
+  com o vídeo da tela e apaga o arquivo do disco — confirmado via
+  `ls` no diretório de uploads, não só pela resposta da API.
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -424,9 +466,14 @@ dependências de todos os pacotes.
   `generated_titles`, `generated_descriptions`, `published_videos`,
   `audit_logs`) implementado na **Fase 2** (`prisma/schema.prisma` +
   migration `prisma/migrations/20260923020625_init_schema`); `search_videos`
-  (join `Search` ↔ `Video`) somado na Fase 6. `User` em uso desde a Fase 3
-  (auth) e `YoutubeAccount` desde a Fase 4 (OAuth) — os
-  demais modelos ainda não têm rota.
+  (join `Search` ↔ `Video`) somado na Fase 6; `media_uploads` somado na
+  Fase 13 (não fazia parte das 14 tabelas originais do briefing — igual
+  `search_videos`, é um gap que só apareceu na hora de implementar de
+  verdade). `User` em uso desde a Fase 3 (auth), `YoutubeAccount` desde a
+  Fase 4 (OAuth), `Opportunity`/`ContentProject`/`Script`/
+  `GeneratedTitle`/`GeneratedDescription` desde as Fases 9/12,
+  `MediaUpload` desde a Fase 13 — `PublishedVideo`/`AuditLog` ainda não têm
+  rota.
 
 ### Diretrizes seguidas no schema da Fase 2
 
@@ -489,7 +536,7 @@ dependências de todos os pacotes.
 | 10   | Página de análise de tendência ✅                                                                             |
 | 11   | IA (`AIProvider`: ideias/roteiro/títulos/descrição) ✅                                                        |
 | 12   | Content Projects ✅                                                                                           |
-| 13   | Upload de mídia (vídeo próprio/autorizado)                                                                    |
+| 13   | Upload de mídia (vídeo próprio/autorizado) ✅                                                                 |
 | 14   | Validação de direitos                                                                                         |
 | 15   | Preview                                                                                                       |
 | 16   | Upload para o YouTube                                                                                         |
