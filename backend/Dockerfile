@@ -31,6 +31,7 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/backend/dist ./backend/dist
 COPY --from=build --chown=node:node /app/backend/package.json ./backend/package.json
 COPY --from=build --chown=node:node /app/services/dist ./services/dist
+COPY --from=build --chown=node:node /app/services/package.json ./services/package.json
 COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/frontend/dist ./frontend/dist
 
