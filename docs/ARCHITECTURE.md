@@ -38,7 +38,31 @@ dependências de todos os pacotes.
   `src/server.ts` (que só chama `listen`), para permitir testar rotas via
   `app.inject()` sem abrir uma porta de rede.
 - `src/prisma.ts` expõe um `PrismaClient` singleton.
-- CORS restrito a `FRONTEND_URL` (nunca `origin: true` em produção).
+- CORS restrito a `FRONTEND_URL` (nunca `origin: true` em produção; registrado
+  com `credentials: true` por causa do cookie de sessão da Fase 3).
+
+### Autenticação (Fase 3)
+
+- Sessão via **cookie httpOnly** (`@fastify/jwt` + `@fastify/cookie`), não
+  `localStorage` — imune a roubo de token por XSS. Funciona sem CORS de
+  verdade porque a arquitetura já é mesma-origem (dev: proxy do Vite; prod:
+  Fastify serve o frontend — ver "Deploy" acima).
+- Senha: `node:crypto` `scrypt` (salt aleatório de 16 bytes, comparação com
+  `timingSafeEqual`) — sem dependência nova/binário nativo (evita complicar o
+  build do Docker, ao contrário de libs como `bcrypt`/`argon2`).
+- Login roda o `scrypt` mesmo quando o e-mail não existe (contra um hash
+  "de mentira" do mesmo formato) — sem isso, responder mais rápido para
+  e-mail inexistente do que para senha errada permite descobrir por timing
+  quais e-mails estão cadastrados.
+- `@fastify/rate-limit`: 100 req/min globais; `/api/auth/register` e
+  `/api/auth/login` com limite próprio (20/min) contra força bruta.
+- `@fastify/helmet` com a config padrão (CSP `default-src 'self'`, etc.) —
+  compatível com o build do frontend (mesma origem, sem CDN externo, sem
+  script inline) sem precisar relaxar nada; validado com `curl` contra o
+  build de produção antes de assumir que funcionava.
+- Frontend: rotas fora de `/login` e `/register` ficam atrás de
+  `RequireAuth` (redireciona pra `/login` se `GET /api/auth/me` não
+  autenticar) — ver `src/auth/`.
 
 ## Frontend
 
@@ -114,7 +138,7 @@ dependências de todos os pacotes.
 | ---- | ------------------------------------------------------------------------------------------------------------- |
 | 1    | **Arquitetura** (monorepo, Docker, env, health check) ✅                                                      |
 | 2    | PostgreSQL + Prisma (schema completo) ✅                                                                      |
-| 3    | Autenticação (cadastro/login/JWT) + `@fastify/helmet` e `@fastify/rate-limit`                                 |
+| 3    | Autenticação (cadastro/login/JWT) + `@fastify/helmet` e `@fastify/rate-limit` ✅                              |
 | 4    | YouTube OAuth (connect/callback/refresh/disconnect)                                                           |
 | 5    | YouTube Data API (`YouTubeService`)                                                                           |
 | 6    | Pesquisa de tendências (`/trends`)                                                                            |
