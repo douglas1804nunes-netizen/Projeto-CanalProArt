@@ -178,6 +178,28 @@ dependências de todos os pacotes.
   nova (sem cache) tenta a API de verdade e mostra o erro 502 de forma
   limpa na UI, como esperado sem `YOUTUBE_API_KEY` real.
 
+### Métricas — velocidade/engajamento/recência/volume (Fase 7)
+
+- Quatro funções puras em `services/src/youtube/metrics.ts`, sem tocar
+  banco nem rede — 100% testáveis com dado fabricado:
+  - `calculateVelocity`: views/hora entre o snapshot mais antigo e o mais
+    novo em `VideoMetric`. Precisa de **2+ snapshots**; com só 1 (comum
+    logo após a Fase 6 buscar um vídeo pela 1ª vez) devolve `null` em vez
+    de um número enganoso — o frontend trata isso omitindo o dado.
+  - `calculateEngagementRate`: `(likes + comentários) / views`, 0 se não
+    houver views.
+  - `calculateRecencyScore`: decaimento exponencial (1 = agora, 0.5 depois
+    de 7 dias) — a meia-vida de 7 dias é uma estimativa inicial, não um
+    número validado com dado real de uso; candidato a ajuste.
+  - `calculateVolumeScore`: normaliza a contagem de vídeos de um trend em
+    0-1 com teto em 25 — usada pela Fase 8, não por esta.
+- `GET /api/trends/search` (cache-hit ou busca nova) passa a devolver
+  `velocity`/`engagementRate`/`recencyScore` por vídeo — `attachMetrics`
+  busca **todos** os snapshots de cada vídeo (não só o mais recente) pra
+  alimentar `calculateVelocity`.
+- Frontend mostra engajamento (%) e velocidade (`views/h`, omitida quando
+  `null`) em cada card — ver `TrendsPage.tsx`.
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`
@@ -258,7 +280,7 @@ dependências de todos os pacotes.
 | 4    | YouTube OAuth (connect/callback/refresh/disconnect) ✅                                                        |
 | 5    | YouTube Data API (`YouTubeService`) ✅                                                                        |
 | 6    | Pesquisa de tendências (`/trends`) ✅                                                                         |
-| 7    | Métricas (velocidade/engajamento/recência/volume)                                                             |
+| 7    | Métricas (velocidade/engajamento/recência/volume) ✅                                                          |
 | 8    | Trend Score (cálculo server-side) + classificação                                                             |
 | 9    | Dashboard (cards, gráfico, top oportunidades)                                                                 |
 | 10   | Página de análise de tendência                                                                                |

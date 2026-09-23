@@ -10,8 +10,8 @@ através da API oficial do YouTube.
 > públicas. Toda publicação exige um vídeo enviado pelo próprio usuário com
 > direitos declarados (ORIGINAL, AUTHORIZED, LICENSED ou PUBLIC_DOMAIN).
 
-**Status atual: Fase 6 — Pesquisa de tendências (`/trends`).** Veja o
-roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+**Status atual: Fase 7 — Métricas (velocidade/engajamento/recência/volume).**
+Veja o roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack
 
