@@ -141,6 +141,7 @@ npm test
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — arquitetura, estrutura de pastas e roadmap por fases
 - [ENVIRONMENT.md](docs/ENVIRONMENT.md) — variáveis de ambiente
 - [YOUTUBE.md](docs/YOUTUBE.md) — como criar as credenciais da YouTube Data API v3 / OAuth
+- [DEPLOY.md](docs/DEPLOY.md) — passo a passo de deploy (Supabase + Render)
 
 ## Regras do projeto
 

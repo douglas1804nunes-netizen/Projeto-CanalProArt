@@ -1,0 +1,37 @@
+# Blueprint do Render — ver docs/DEPLOY.md para o passo a passo completo.
+# Cria um único Web Service (Docker) que builda backend/Dockerfile a partir
+# da raiz do monorepo. O Fastify serve o build do frontend na mesma origem
+# (ver docs/ARCHITECTURE.md, "Deploy") — não há Static Site separado.
+services:
+  - type: web
+    name: canalproart
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: YOUTUBE_CLIENT_ID
+        sync: false
+      - key: YOUTUBE_CLIENT_SECRET
+        sync: false
+      - key: YOUTUBE_REDIRECT_URI
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: anthropic
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
