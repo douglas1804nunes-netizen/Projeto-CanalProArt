@@ -61,6 +61,10 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: postgresql://canalproart:canalproart@localhost:5432/canalproart?schema=public
           JWT_SECRET: ci-test-only-secret-not-used-anywhere-else-0123456789
+          TOKEN_ENCRYPTION_KEY: 21f43b98d9aca5d34192b85b2383ca46bed2ba792ea1de01491ad8dd904d55ad
+          YOUTUBE_CLIENT_ID: ci-test-only-client-id
+          YOUTUBE_CLIENT_SECRET: ci-test-only-client-secret
+          YOUTUBE_REDIRECT_URI: http://localhost:3000/api/youtube/callback
 
       - name: Build
         run: npm run build
