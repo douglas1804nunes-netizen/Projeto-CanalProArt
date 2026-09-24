@@ -74,11 +74,17 @@ $env:DATABASE_URL = "<uri>"; node scripts/check-db.mjs   # PowerShell
 O script usa o mesmo Prisma do app, nunca imprime a senha (só o tamanho) e
 avisa os erros comuns. Como reconhecer o erro pelo log do Render:
 
-| Log do app (`Health check: falha ao conectar no banco`)        | Causa                                                                        |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `Can't reach database server at localhost:5432`                | `DATABASE_URL` do Postgres local — o Render não enxerga o seu computador.    |
-| `Can't reach database server at db.<projeto>.supabase.co:5432` | Direct connection (só IPv6). Trocar pelo Session pooler.                     |
-| `Authentication failed ... credentials for postgres`           | Chegou no pooler, mas a senha está errada (ou tem colchetes/espaço/símbolo). |
+| Log do app (`Health check: falha ao conectar no banco`)        | Causa                                                                                                                                                            |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Can't reach database server at localhost:5432`                | `DATABASE_URL` do Postgres local — o Render não enxerga o seu computador.                                                                                        |
+| `Can't reach database server at db.<projeto>.supabase.co:5432` | Direct connection (só IPv6). Trocar pelo Session pooler.                                                                                                         |
+| `Authentication failed ... credentials for postgres`           | Chegou no pooler, mas a senha está errada (ou tem colchetes/espaço/símbolo).                                                                                     |
+| `FATAL: (ECIRCUITBREAKER) too many authentication failures`    | Muitas tentativas com senha errada: o pooler bloqueou novas conexões por um tempo. Não faça deploy; corrija e teste a URI com `check-db.mjs`; espere ~10–15 min. |
+
+Com senha recusada (`P1000`) o app **encerra no boot** (`Exited with status 1`)
+em vez de ficar de pé respondendo 503 — assim o Render não tenta autenticar
+sem parar e não aciona o `ECIRCUITBREAKER`. Se o deploy cair assim, o log tem
+`DATABASE_URL: o banco recusou a autenticação (P1000)`.
 
 **Novas migrations:** o Dockerfile não roda migrations no boot (`prisma` CLI é
 devDependency e não sobrevive ao `npm prune --omit=dev`; rodar migration no
