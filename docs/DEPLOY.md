@@ -50,11 +50,35 @@ habilitado em toda tabela — sem policies, de propósito: o backend usa Prisma
 com a role `postgres` (que ignora RLS), não a API REST do Supabase, então RLS
 aqui só bloqueia a API REST não usada caso a `anon key` vaze.
 
-**Connection string:** [Project Settings → Database](https://supabase.com/dashboard/project/fmyhkyanxlvvgjwjjggp/settings/database)
-→ "Connection string" → modo **Session pooler** (não "Direct connection": o
-Render não tem saída IPv6 e a conexão direta do Supabase exige IPv6). Troque
-`[YOUR-PASSWORD]` pela senha do banco (se não souber mais, "Reset database
-password" na mesma página).
+**Connection string:** no painel do projeto, botão **Connect** (topo) → aba
+"Connection String" → **Method: Session pooler** (não "Direct connection": o
+Render não tem saída IPv6 e a conexão direta do Supabase exige IPv6). Se não
+souber mais a senha do banco: [Project Settings → Database](https://supabase.com/dashboard/project/fmyhkyanxlvvgjwjjggp/settings/database)
+→ "Reset database password" (use só letras e números, para não precisar
+codificar nada na URI).
+
+A URI deste projeto (só a senha muda; sem colchetes):
+
+```
+postgresql://postgres.fmyhkyanxlvvgjwjjggp:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres
+```
+
+**Teste a URI antes de colar no Render** — cada deploy que falha no health
+check custa ~15 min. Na raiz do repositório:
+
+```
+DATABASE_URL="<uri>" node scripts/check-db.mjs      # bash
+$env:DATABASE_URL = "<uri>"; node scripts/check-db.mjs   # PowerShell
+```
+
+O script usa o mesmo Prisma do app, nunca imprime a senha (só o tamanho) e
+avisa os erros comuns. Como reconhecer o erro pelo log do Render:
+
+| Log do app (`Health check: falha ao conectar no banco`)        | Causa                                                                        |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `Can't reach database server at localhost:5432`                | `DATABASE_URL` do Postgres local — o Render não enxerga o seu computador.    |
+| `Can't reach database server at db.<projeto>.supabase.co:5432` | Direct connection (só IPv6). Trocar pelo Session pooler.                     |
+| `Authentication failed ... credentials for postgres`           | Chegou no pooler, mas a senha está errada (ou tem colchetes/espaço/símbolo). |
 
 **Novas migrations:** o Dockerfile não roda migrations no boot (`prisma` CLI é
 devDependency e não sobrevive ao `npm prune --omit=dev`; rodar migration no
