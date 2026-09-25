@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import { buildApp } from "../app.js";
@@ -338,5 +338,82 @@ describe("Rotas de mídia (Fases 13-14)", () => {
       payload: { status: "READY" },
     });
     expect(response.statusCode).toBe(400);
+  });
+
+  // Importação por URL — as travas de segurança rodam antes de qualquer
+  // conexão, então dá pra testar sem rede. O caminho de sucesso está em
+  // mediaImport.test.ts (com o download substituído).
+  describe("POST .../media/import (travas antes de baixar)", () => {
+    // Instância nova por teste: a rota tem rate limit (5/min) em memória.
+    let importApp: ReturnType<typeof buildApp>;
+
+    beforeEach(() => {
+      importApp = buildApp();
+    });
+
+    afterEach(async () => {
+      await importApp.close();
+    });
+
+    function importUrl(token: string, projectId: string, url: unknown) {
+      return importApp.inject({
+        method: "POST",
+        url: `/api/content-projects/${projectId}/media/import`,
+        cookies: { token },
+        payload: { url },
+      });
+    }
+
+    it("exige autenticação", async () => {
+      const response = await importApp.inject({
+        method: "POST",
+        url: "/api/content-projects/algum-id/media/import",
+        payload: { url: "https://exemplo.com/a.mp4" },
+      });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("devolve 404 pra projeto de outro usuário", async () => {
+      const { token: otherToken } = await registerUser("import-other");
+      const project = await createProject(mainToken);
+
+      const response = await importUrl(otherToken, project.id, "https://exemplo.com/a.mp4");
+      expect(response.statusCode).toBe(404);
+    });
+
+    it("devolve 400 sem link", async () => {
+      const project = await createProject(mainToken);
+
+      expect((await importUrl(mainToken, project.id, undefined)).statusCode).toBe(400);
+      expect((await importUrl(mainToken, project.id, "   ")).statusCode).toBe(400);
+    });
+
+    it("recusa link do YouTube com a explicação", async () => {
+      const project = await createProject(mainToken);
+
+      const response = await importUrl(
+        mainToken,
+        project.id,
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      );
+
+      expect(response.statusCode).toBe(400);
+      expect((response.json() as { error: string }).error).toMatch(/não baixa vídeos do YouTube/);
+      expect(await prisma.mediaUpload.count({ where: { contentProjectId: project.id } })).toBe(0);
+    });
+
+    it.each([
+      "http://127.0.0.1/video.mp4",
+      "http://169.254.169.254/latest/meta-data/",
+      "http://[::1]/video.mp4",
+      "file:///etc/passwd",
+    ])("recusa alvo interno ou protocolo não permitido (SSRF): %s", async (url) => {
+      const project = await createProject(mainToken);
+
+      const response = await importUrl(mainToken, project.id, url);
+
+      expect(response.statusCode).toBe(400);
+      expect(await prisma.mediaUpload.count({ where: { contentProjectId: project.id } })).toBe(0);
+    });
   });
 });

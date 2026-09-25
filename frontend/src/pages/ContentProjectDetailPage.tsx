@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 
 type ContentProjectStatus = "DRAFT" | "IN_PROGRESS" | "READY" | "PUBLISHED" | "ARCHIVED";
@@ -93,6 +93,7 @@ export function ContentProjectDetailPage() {
   const [state, setState] = useState<DetailState>({ status: "loading" });
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [importUrl, setImportUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rightsStatusRef = useRef<HTMLSelectElement>(null);
   const syntheticMediaRef = useRef<HTMLInputElement>(null);
@@ -123,7 +124,9 @@ export function ContentProjectDetailPage() {
     void loadProject();
   }, [loadProject]);
 
-  async function runAction(key: string, request: () => Promise<Response>) {
+  // Devolve se a ação deu certo — quem chama decide o que limpar (ex.: só
+  // esvazia o campo de link quando a importação funcionou).
+  async function runAction(key: string, request: () => Promise<Response>): Promise<boolean> {
     setBusy(key);
     setActionError(null);
     try {
@@ -131,11 +134,13 @@ export function ContentProjectDetailPage() {
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { error?: string };
         setActionError(body.error ?? `Ação falhou (HTTP ${response.status}).`);
-        return;
+        return false;
       }
       await loadProject();
+      return true;
     } catch {
       setActionError("Não foi possível conectar ao backend.");
+      return false;
     } finally {
       setBusy(null);
     }
@@ -218,6 +223,22 @@ export function ContentProjectDetailPage() {
       }),
     );
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleImportMedia(event: FormEvent) {
+    event.preventDefault();
+    const url = importUrl.trim();
+    if (!url) return;
+
+    const imported = await runAction("media-import", () =>
+      fetch(`/api/content-projects/${id}/media/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ url }),
+      }),
+    );
+    if (imported) setImportUrl("");
   }
 
   async function handleRemoveMedia() {
@@ -370,6 +391,42 @@ export function ContentProjectDetailPage() {
                     : "Enviar vídeo"}
               </button>
             </div>
+
+            <form
+              onSubmit={(event) => void handleImportMedia(event)}
+              className="mt-4 border-t border-slate-100 pt-4"
+            >
+              <h3 className="text-xs font-medium text-slate-700">Importar por link</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Cole o link direto de um arquivo de vídeo (.mp4, .mov, .webm…) que seja seu ou
+                autorizado — depois é preciso declarar os direitos. Links do YouTube não funcionam:
+                o CanalProArt não baixa vídeos do YouTube. No Dropbox, use <code>?dl=1</code> no fim
+                do link.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  type="url"
+                  value={importUrl}
+                  onChange={(event) => setImportUrl(event.target.value)}
+                  aria-label="Link do vídeo"
+                  placeholder="https://exemplo.com/meu-video.mp4"
+                  className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-500"
+                />
+                <button
+                  type="submit"
+                  disabled={busy === "media-import" || importUrl.trim() === ""}
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                >
+                  {busy === "media-import" ? "Baixando…" : "Importar"}
+                </button>
+              </div>
+              {busy === "media-import" && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Baixando o vídeo no servidor — arquivos grandes podem levar alguns minutos.
+                  Mantenha esta página aberta.
+                </p>
+              )}
+            </form>
           </div>
 
           <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

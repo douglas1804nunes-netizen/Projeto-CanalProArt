@@ -1,11 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, rm, stat } from "node:fs/promises";
+import { mkdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { pipeline } from "node:stream/promises";
+import type { MediaUpload } from "@prisma/client";
 import { z } from "zod";
 import { rootDir } from "../env.js";
+import { MAX_MEDIA_UPLOAD_BYTES } from "../media/limits.js";
+import { downloadVideoFromUrl, ImportUrlError } from "../media/remoteDownload.js";
 import { prisma } from "../prisma.js";
 
 const RIGHTS_STATUS_VALUES = ["ORIGINAL", "AUTHORIZED", "LICENSED", "PUBLIC_DOMAIN"] as const;
@@ -39,6 +42,40 @@ async function deleteFileIfExists(absolutePath: string) {
 
 function absolutePathFor(relativePath: string): string {
   return path.join(rootDir, "backend", relativePath);
+}
+
+const importBodySchema = z.object({ url: z.string().trim().min(1).max(2048) });
+
+// Um novo arquivo é conteúdo diferente do que foi declarado antes — reseta a
+// declaração de direitos (Fase 14) em vez de manter a declaração antiga
+// colada num arquivo novo. Vale igual pra upload e pra importação por URL.
+function saveMediaUpload(
+  contentProjectId: string,
+  file: { fileName: string; filePath: string; mimeType: string; sizeBytes: number },
+) {
+  const data = {
+    fileName: file.fileName,
+    filePath: file.filePath,
+    mimeType: file.mimeType,
+    sizeBytes: BigInt(file.sizeBytes),
+  };
+  return prisma.mediaUpload.upsert({
+    where: { contentProjectId },
+    create: { contentProjectId, ...data },
+    update: { ...data, rightsStatus: null, containsSyntheticMedia: false },
+  });
+}
+
+function serializeMediaUpload(mediaUpload: MediaUpload) {
+  return {
+    id: mediaUpload.id,
+    fileName: mediaUpload.fileName,
+    mimeType: mediaUpload.mimeType,
+    sizeBytes: mediaUpload.sizeBytes.toString(),
+    rightsStatus: mediaUpload.rightsStatus,
+    containsSyntheticMedia: mediaUpload.containsSyntheticMedia,
+    createdAt: mediaUpload.createdAt,
+  };
 }
 
 export async function mediaRoutes(app: FastifyInstance) {
@@ -87,42 +124,100 @@ export async function mediaRoutes(app: FastifyInstance) {
       // o pipeline terminou.
       if (file.file.truncated) {
         await deleteFileIfExists(absolutePath);
-        return reply.status(413).send({ error: "Arquivo excede o limite de 500MB" });
+        return reply
+          .status(413)
+          .send({ error: `Arquivo excede o limite de ${MAX_MEDIA_UPLOAD_BYTES / 1024 / 1024}MB` });
       }
 
       const { size } = await stat(absolutePath);
 
-      // Um novo arquivo é conteúdo diferente do que foi declarado antes —
-      // reseta a declaração de direitos (Fase 14) em vez de manter a
-      // declaração antiga colada num arquivo novo.
-      const mediaUpload = await prisma.mediaUpload.upsert({
-        where: { contentProjectId: id },
-        create: {
-          contentProjectId: id,
-          fileName: file.filename,
-          filePath: relativePath,
-          mimeType: file.mimetype,
-          sizeBytes: BigInt(size),
-        },
-        update: {
-          fileName: file.filename,
-          filePath: relativePath,
-          mimeType: file.mimetype,
-          sizeBytes: BigInt(size),
-          rightsStatus: null,
-          containsSyntheticMedia: false,
+      const mediaUpload = await saveMediaUpload(id, {
+        fileName: file.filename,
+        filePath: relativePath,
+        mimeType: file.mimetype,
+        sizeBytes: size,
+      });
+
+      return reply.status(201).send(serializeMediaUpload(mediaUpload));
+    },
+  );
+
+  // Importa um vídeo por link direto de arquivo (ver media/remoteDownload.ts
+  // pras travas de segurança). O download vai pra um arquivo temporário
+  // primeiro: o vídeo anterior só é apagado depois que o novo chegou inteiro,
+  // então uma importação que falha não destrói o que já estava no projeto.
+  // Direitos continuam sendo declarados depois, como em qualquer upload.
+  app.post(
+    "/api/content-projects/:id/media/import",
+    {
+      preHandler: [app.authenticate],
+      // Cada chamada faz o servidor baixar até 500MB — não é pra ser em loop.
+      config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const parsed = importBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Informe o link do vídeo." });
+      }
+
+      const project = await loadOwnedProject(request.user.sub, id);
+      if (!project) {
+        return reply.status(404).send({ error: "Projeto não encontrado" });
+      }
+
+      const projectDir = path.join(UPLOADS_DIR, id);
+      await mkdir(projectDir, { recursive: true });
+      const partPath = path.join(projectDir, `.import-${randomUUID()}.part`);
+
+      let downloaded;
+      try {
+        downloaded = await downloadVideoFromUrl(parsed.data.url, partPath, {
+          maxBytes: MAX_MEDIA_UPLOAD_BYTES,
+        });
+      } catch (error) {
+        await deleteFileIfExists(partPath);
+        if (error instanceof ImportUrlError) {
+          return reply.status(error.statusCode).send({ error: error.message });
+        }
+        app.log.error({ err: error }, "Falha inesperada ao importar vídeo por URL");
+        return reply.status(502).send({ error: "Não foi possível baixar o vídeo desse link." });
+      }
+
+      const storedFileName = `${randomUUID()}-${sanitizeFileName(downloaded.fileName)}`;
+      const relativePath = path.join("uploads", id, storedFileName);
+
+      const existing = await prisma.mediaUpload.findUnique({ where: { contentProjectId: id } });
+      if (existing) {
+        await deleteFileIfExists(absolutePathFor(existing.filePath));
+      }
+      await rename(partPath, path.join(projectDir, storedFileName));
+
+      const mediaUpload = await saveMediaUpload(id, {
+        fileName: downloaded.fileName,
+        filePath: relativePath,
+        mimeType: downloaded.mimeType,
+        sizeBytes: downloaded.sizeBytes,
+      });
+
+      // Registro de origem: sem query string (links assinados carregam
+      // token). É o rastro de "de onde veio esse arquivo" pra quando a
+      // declaração de direitos for questionada.
+      await prisma.auditLog.create({
+        data: {
+          userId: request.user.sub,
+          action: "MEDIA_IMPORTED_FROM_URL",
+          entityType: "ContentProject",
+          entityId: id,
+          metadata: {
+            sourceUrl: `${downloaded.finalUrl.origin}${downloaded.finalUrl.pathname}`,
+            sizeBytes: downloaded.sizeBytes,
+            mimeType: downloaded.mimeType,
+          },
         },
       });
 
-      return reply.status(201).send({
-        id: mediaUpload.id,
-        fileName: mediaUpload.fileName,
-        mimeType: mediaUpload.mimeType,
-        sizeBytes: mediaUpload.sizeBytes.toString(),
-        rightsStatus: mediaUpload.rightsStatus,
-        containsSyntheticMedia: mediaUpload.containsSyntheticMedia,
-        createdAt: mediaUpload.createdAt,
-      });
+      return reply.status(201).send(serializeMediaUpload(mediaUpload));
     },
   );
 

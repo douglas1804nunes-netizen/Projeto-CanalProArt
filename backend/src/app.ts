@@ -22,11 +22,7 @@ import { mediaRoutes } from "./routes/media.js";
 import { publishRoutes } from "./routes/publish.js";
 import { publishedVideoRoutes } from "./routes/publishedVideos.js";
 import { settingsRoutes } from "./routes/settings.js";
-
-// Vídeos podem ser grandes — 500MB é um teto razoável pra upload local de
-// dev sem travar o processo com arquivos absurdos (ver docs/ARCHITECTURE.md,
-// Fase 13).
-const MAX_MEDIA_UPLOAD_BYTES = 500 * 1024 * 1024;
+import { MAX_MEDIA_UPLOAD_BYTES } from "./media/limits.js";
 
 // O callback OAuth do YouTube (Fase 4) recebe "code"/"state" na query string,
 // que o serializer padrão do Fastify logaria em texto puro em "req.url" (pino

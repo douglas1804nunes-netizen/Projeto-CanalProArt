@@ -232,4 +232,99 @@ describe("ContentProjectDetailPage", () => {
       );
     });
   });
+
+  describe("importar por link", () => {
+    const importedProject = {
+      ...emptyProject,
+      mediaUpload: {
+        id: "media-1",
+        fileName: "clip.mp4",
+        mimeType: "video/mp4",
+        sizeBytes: "1000",
+        rightsStatus: null,
+        containsSyntheticMedia: false,
+      },
+    };
+
+    function mockImport(importResponse: { ok: boolean; status?: number; body?: unknown }) {
+      let imported = false;
+      const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/content-projects/project-1/media/import" && init?.method === "POST") {
+          imported = importResponse.ok;
+          return Promise.resolve({
+            ok: importResponse.ok,
+            status: importResponse.status ?? 201,
+            json: async () => importResponse.body ?? {},
+          });
+        }
+        if (url === "/api/content-projects/project-1") {
+          return Promise.resolve({
+            ok: true,
+            json: async () => (imported ? importedProject : emptyProject),
+          });
+        }
+        return Promise.reject(new Error(`fetch não mockado para ${url}`));
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    it("explica que links do YouTube não funcionam e exige declarar direitos", async () => {
+      mockImport({ ok: true });
+      renderPage();
+
+      expect(await screen.findByText(/não baixa vídeos do YouTube/)).toBeInTheDocument();
+      expect(screen.getByText(/depois é preciso declarar os direitos/)).toBeInTheDocument();
+    });
+
+    it("mantém o botão desabilitado enquanto não há link", async () => {
+      mockImport({ ok: true });
+      renderPage();
+
+      expect(await screen.findByRole("button", { name: "Importar" })).toBeDisabled();
+      fireEvent.change(screen.getByLabelText("Link do vídeo"), {
+        target: { value: "https://exemplo.com/a.mp4" },
+      });
+      expect(screen.getByRole("button", { name: "Importar" })).toBeEnabled();
+    });
+
+    it("importa, recarrega o projeto com o vídeo e limpa o campo", async () => {
+      const fetchMock = mockImport({ ok: true });
+      renderPage();
+
+      const input = await screen.findByLabelText("Link do vídeo");
+      fireEvent.change(input, { target: { value: "  https://exemplo.com/clip.mp4  " } });
+      fireEvent.click(screen.getByRole("button", { name: "Importar" }));
+
+      expect(await screen.findByText(/clip\.mp4 ·/)).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/content-projects/project-1/media/import",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ url: "https://exemplo.com/clip.mp4" }),
+        }),
+      );
+      expect(screen.getByLabelText("Link do vídeo")).toHaveValue("");
+    });
+
+    it("mostra o erro do servidor e mantém o link digitado pra corrigir", async () => {
+      mockImport({
+        ok: false,
+        status: 400,
+        body: { error: "Links do YouTube não podem ser importados." },
+      });
+      renderPage();
+
+      const input = await screen.findByLabelText("Link do vídeo");
+      fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc" } });
+      fireEvent.click(screen.getByRole("button", { name: "Importar" }));
+
+      expect(
+        await screen.findByText("Links do YouTube não podem ser importados."),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Link do vídeo")).toHaveValue("https://youtube.com/watch?v=abc");
+      expect(screen.getByText("Nenhum vídeo enviado ainda.")).toBeInTheDocument();
+    });
+  });
 });
