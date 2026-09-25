@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Cover } from "../components/Cover";
+import { VideoLink } from "../components/VideoLink";
 import { getDefaultRegion } from "../preferences";
 
 type TrendVideo = {
   id: string;
   youtubeVideoId: string;
+  // Link pronto do vídeo no YouTube (montado pelo backend).
+  url: string;
   channelTitle: string;
   title: string;
   thumbnailUrl: string;
@@ -310,7 +313,7 @@ export function TrendsPage() {
                     className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
                   >
                     <a
-                      href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
+                      href={video.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`Abrir "${video.title}" no YouTube`}
@@ -335,13 +338,14 @@ export function TrendsPage() {
                         {formatVelocity(video.velocity) && ` · ${formatVelocity(video.velocity)}`}
                       </p>
                       <a
-                        href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
+                        href={video.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="mt-3 inline-block text-xs font-medium text-slate-600 underline hover:text-slate-900"
                       >
                         Abrir no YouTube ↗
                       </a>
+                      <VideoLink url={video.url} />
                     </div>
                   </li>
                 ))}

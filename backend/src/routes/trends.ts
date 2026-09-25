@@ -38,6 +38,10 @@ const searchBodySchema = z.object({
 
 type SerializedVideo = ReturnType<typeof serializeVideo>;
 
+export function youtubeWatchUrl(youtubeVideoId: string): string {
+  return `https://www.youtube.com/watch?v=${encodeURIComponent(youtubeVideoId)}`;
+}
+
 // metrics[0] é o mais recente (a query que preenche isso ordena por
 // fetchedAt desc) — os demais (se houver) alimentam calculateVelocity.
 function serializeVideo(video: Video, metrics: VideoMetric[]) {
@@ -46,6 +50,9 @@ function serializeVideo(video: Video, metrics: VideoMetric[]) {
   return {
     id: video.id,
     youtubeVideoId: video.youtubeVideoId,
+    // Link pronto do vídeo — o frontend não precisa montar a URL (uma única
+    // fonte de verdade pro formato do link).
+    url: youtubeWatchUrl(video.youtubeVideoId),
     channelTitle: video.channelTitle,
     title: video.title,
     thumbnailUrl: video.thumbnailUrl,

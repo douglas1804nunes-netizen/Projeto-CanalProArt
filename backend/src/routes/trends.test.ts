@@ -1,13 +1,24 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app.js";
 import { prisma } from "../prisma.js";
-import { maybeCreateOpportunity } from "./trends.js";
+import { maybeCreateOpportunity, youtubeWatchUrl } from "./trends.js";
 
 // Requer Postgres real — sem mocks. O caminho que chama a YouTube Data API
 // de verdade (busca sem cache) não dá pra testar sem credenciais reais do
 // Google — ver docs/ARCHITECTURE.md. Aqui cobre o que é nosso: guarda de
 // autenticação, validação, cache-hit (dados fabricados) e isolamento por
 // usuário no histórico.
+describe("youtubeWatchUrl", () => {
+  it("monta o link canônico de um vídeo", () => {
+    expect(youtubeWatchUrl("dQw4w9WgXcQ")).toBe("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  });
+
+  it("codifica o id para nunca quebrar a URL (ids do YouTube usam - e _)", () => {
+    expect(youtubeWatchUrl("a-b_c")).toBe("https://www.youtube.com/watch?v=a-b_c");
+    expect(youtubeWatchUrl("x&y=1 #z")).toBe("https://www.youtube.com/watch?v=x%26y%3D1%20%23z");
+  });
+});
+
 describe("Rotas de tendências (Fases 6-8)", () => {
   const app = buildApp();
   const createdEmails: string[] = [];
@@ -136,7 +147,7 @@ describe("Rotas de tendências (Fases 6-8)", () => {
       searchId: string;
       cached: boolean;
       trend: { score: number; classification: string } | null;
-      videos: Array<{ id: string; viewCount: string }>;
+      videos: Array<{ id: string; viewCount: string; url: string }>;
     };
 
     expect(body.cached).toBe(true);
@@ -145,6 +156,9 @@ describe("Rotas de tendências (Fases 6-8)", () => {
     // preserva o rank (videoA antes de videoB)
     expect(body.videos[0]).toMatchObject({ id: videoA.id, viewCount: "1000" });
     expect(body.videos[1]).toMatchObject({ id: videoB.id, viewCount: "2000" });
+    // cada vídeo já vem com o link pronto do YouTube
+    expect(body.videos[0]?.url).toBe(`https://www.youtube.com/watch?v=${videoA.youtubeVideoId}`);
+    expect(body.videos[1]?.url).toBe(`https://www.youtube.com/watch?v=${videoB.youtubeVideoId}`);
     // nenhum Trend foi criado pra esse tópico — cache-hit não calcula na hora
     expect(body.trend).toBeNull();
   });
@@ -513,7 +527,7 @@ describe("Rotas de tendências (Fases 6-8)", () => {
         topic: string;
         trendScore: number;
         classification: string;
-        videos: Array<{ id: string; videoScore: number }>;
+        videos: Array<{ id: string; videoScore: number; url: string }>;
         history: Array<{ id: string; trendScore: number }>;
       };
 
@@ -525,6 +539,7 @@ describe("Rotas de tendências (Fases 6-8)", () => {
       expect(body.videos[0].id).toBe(videoA.id);
       expect(body.videos[1].id).toBe(videoB.id);
       expect(typeof body.videos[0].videoScore).toBe("number");
+      expect(body.videos[0].url).toBe(`https://www.youtube.com/watch?v=${videoA.youtubeVideoId}`);
       // histórico em ordem cronológica, incluindo o trend atual
       expect(body.history.map((h) => h.id)).toEqual([olderTrend.id, trend.id]);
       expect(body.history[0].trendScore).toBe(30);

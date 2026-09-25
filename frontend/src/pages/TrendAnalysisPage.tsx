@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Cover } from "../components/Cover";
+import { VideoLink } from "../components/VideoLink";
 import {
   CartesianGrid,
   Line,
@@ -16,6 +17,8 @@ type TrendClassification = "RISING" | "HOT" | "STABLE" | "DECLINING";
 type AnalysisVideo = {
   id: string;
   youtubeVideoId: string;
+  // Link pronto do vídeo no YouTube (montado pelo backend).
+  url: string;
   channelTitle: string;
   title: string;
   thumbnailUrl: string;
@@ -196,7 +199,7 @@ export function TrendAnalysisPage() {
                     className="flex gap-4 rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
                   >
                     <a
-                      href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
+                      href={video.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`Abrir "${video.title}" no YouTube`}
@@ -221,7 +224,7 @@ export function TrendAnalysisPage() {
                           <span>Velocidade: {Math.round(video.velocity)} views/h</span>
                         )}
                         <a
-                          href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
+                          href={video.url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="font-medium text-slate-600 underline hover:text-slate-900"
@@ -229,6 +232,8 @@ export function TrendAnalysisPage() {
                           Abrir no YouTube ↗
                         </a>
                       </div>
+
+                      <VideoLink url={video.url} />
                     </div>
                   </li>
                 ))}

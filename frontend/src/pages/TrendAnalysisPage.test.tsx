@@ -20,6 +20,7 @@ function renderPage(id = "trend-1") {
 const sampleVideo = {
   id: "video-1",
   youtubeVideoId: "yt-1",
+  url: "https://www.youtube.com/watch?v=yt-1",
   channelTitle: "Canal Teste",
   title: "Um vídeo em alta",
   thumbnailUrl: "https://example.com/thumb.jpg",
@@ -59,6 +60,12 @@ describe("TrendAnalysisPage", () => {
     expect(screen.getByText(/Em alta · 82/)).toBeInTheDocument();
     expect(screen.getByText("Um vídeo em alta")).toBeInTheDocument();
     expect(screen.getByText(/Score do vídeo: 0\.75/)).toBeInTheDocument();
+    // o link de cada vídeo já aparece na descrição, com o botão de copiar
+    expect(screen.getByRole("link", { name: "www.youtube.com/watch?v=yt-1" })).toHaveAttribute(
+      "href",
+      "https://www.youtube.com/watch?v=yt-1",
+    );
+    expect(screen.getByRole("button", { name: "Copiar link" })).toBeInTheDocument();
   });
 
   it("mostra mensagem quando não há histórico suficiente", async () => {

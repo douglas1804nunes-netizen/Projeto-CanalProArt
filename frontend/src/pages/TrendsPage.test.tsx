@@ -18,6 +18,7 @@ function renderPage() {
 const sampleVideo = {
   id: "video-1",
   youtubeVideoId: "yt-1",
+  url: "https://www.youtube.com/watch?v=yt-1",
   channelTitle: "Canal Teste",
   title: "Um vídeo em alta",
   thumbnailUrl: "https://example.com/thumb.jpg",
@@ -193,9 +194,54 @@ describe("TrendsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
 
     const link = await screen.findByRole("link", { name: /Abrir no YouTube/ });
-    expect(link).toHaveAttribute("href", "https://youtube.com/watch?v=yt-1");
+    expect(link).toHaveAttribute("href", "https://www.youtube.com/watch?v=yt-1");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+  });
+
+  it("mostra o link de cada vídeo na descrição e copia com um clique", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const secondVideo = {
+      ...sampleVideo,
+      id: "video-2",
+      youtubeVideoId: "yt-2",
+      url: "https://www.youtube.com/watch?v=yt-2",
+      title: "Outro vídeo",
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === "/api/trends/searches") {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          searchId: "search-1",
+          cached: false,
+          fetchedAt: new Date().toISOString(),
+          videos: [sampleVideo, secondVideo],
+        }),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
+    // um link visível por vídeo, sem precisar abrir nada pra descobrir
+    expect(
+      await screen.findByRole("link", { name: "www.youtube.com/watch?v=yt-1" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "www.youtube.com/watch?v=yt-2" })).toBeInTheDocument();
+
+    const copyButtons = screen.getAllByRole("button", { name: "Copiar link" });
+    expect(copyButtons).toHaveLength(2);
+    fireEvent.click(copyButtons[1] as HTMLElement);
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("https://www.youtube.com/watch?v=yt-2"),
+    );
+    expect(await screen.findByRole("button", { name: "Copiado!" })).toBeInTheDocument();
   });
 
   describe("capas das pesquisas recentes", () => {

@@ -589,7 +589,13 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
   confirmação); o mesmo botão existe em Configurações.
 - **Abrir o vídeo**: cada card de tendência (`TrendsPage`) e cada vídeo da
   análise (`TrendAnalysisPage`) tem um link "Abrir no YouTube" (nova aba,
-  `rel="noopener noreferrer"`), além da thumbnail clicável.
+  `rel="noopener noreferrer"`), além da thumbnail clicável. O link de cada
+  vídeo já vem pronto da API (`url` em `POST /api/trends/search` e
+  `GET /api/trends/:id`, montado por `youtubeWatchUrl` em `trends.ts` — uma
+  única fonte de verdade pro formato) e aparece visível na descrição do card,
+  com botão "Copiar link" (`components/VideoLink.tsx`): usa o Clipboard API e,
+  se o navegador negar, cai no método por seleção de texto; se nada funcionar,
+  o link continua visível pra copiar à mão.
 - **Sem download de vídeos de terceiros — de propósito.** Baixar e reenviar
   vídeo alheio ao próprio canal viola direitos autorais e a política de
   "conteúdo reutilizado" do YouTube (o canal perde monetização ou leva
