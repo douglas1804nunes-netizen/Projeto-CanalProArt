@@ -17,4 +17,26 @@ describe("GET /api/health", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: "ok", database: "connected" });
   });
+
+  // Regressão: a CSP padrão do helmet (img-src 'self' data:) bloqueava, só em
+  // produção, as capas dos vídeos servidas por i.ytimg.com.
+  describe("Content-Security-Policy", () => {
+    async function csp() {
+      const response = await app.inject({ method: "GET", url: "/api/health" });
+      return String(response.headers["content-security-policy"]);
+    }
+
+    it("permite imagens das miniaturas do YouTube", async () => {
+      expect(await csp()).toContain("img-src 'self' data: https://*.ytimg.com");
+    });
+
+    it("continua restringindo scripts e o padrão à própria origem", async () => {
+      const policy = await csp();
+      expect(policy).toContain("default-src 'self'");
+      expect(policy).toContain("script-src 'self'");
+      expect(policy).toContain("object-src 'none'");
+      // só o domínio de miniaturas foi liberado, não https: inteiro
+      expect(policy).not.toMatch(/img-src[^;]*\shttps:(\s|;|$)/);
+    });
+  });
 });

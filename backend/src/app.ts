@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
-import helmet from "@fastify/helmet";
+import { fastifyHelmet as helmet } from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import multipart from "@fastify/multipart";
@@ -83,7 +83,19 @@ export function buildApp() {
     credentials: true,
   });
 
-  app.register(helmet);
+  // A CSP padrão do helmet só deixa carregar imagem da própria origem
+  // (img-src 'self' data:) — em produção isso bloqueava as capas dos vídeos,
+  // que vêm do CDN de miniaturas do YouTube (i.ytimg.com, i9.ytimg.com...).
+  // No dev o Vite não aplica CSP, então o problema só aparecia no deploy.
+  // Libera só esse domínio, pra imagens; o resto da política continua igual.
+  app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        "img-src": ["'self'", "data:", "https://*.ytimg.com"],
+      },
+    },
+  });
   app.register(rateLimit, {
     max: 100,
     timeWindow: "1 minute",

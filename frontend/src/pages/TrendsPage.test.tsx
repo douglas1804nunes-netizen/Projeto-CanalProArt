@@ -198,10 +198,82 @@ describe("TrendsPage", () => {
     expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
   });
 
+  describe("capas das pesquisas recentes", () => {
+    const COVER = "https://i.ytimg.com/vi/abc/hqdefault.jpg";
+
+    function mockSearches() {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => [
+            {
+              id: "s1",
+              query: "gatos",
+              regionCode: "BR",
+              resultCount: 2,
+              fetchedAt: "2026-01-01",
+              coverUrl: COVER,
+            },
+            {
+              id: "s2",
+              query: "vazia",
+              regionCode: "BR",
+              resultCount: 1,
+              fetchedAt: "2026-01-02",
+              coverUrl: null,
+            },
+          ],
+        }),
+      );
+    }
+
+    it("mostra a capa de cada pesquisa e a quantidade de vídeos", async () => {
+      mockSearches();
+      const { container } = renderPage();
+
+      await screen.findByRole("button", { name: /^gatos · BR$/ });
+
+      expect(container.querySelector(`img[src="${COVER}"]`)).not.toBeNull();
+      expect(screen.getByText("2 vídeos")).toBeInTheDocument();
+      expect(screen.getByText("1 vídeo")).toBeInTheDocument();
+      // sem capa: um bloco neutro no lugar (não uma imagem quebrada)
+      expect(container.querySelectorAll("img")).toHaveLength(1);
+      expect(screen.getAllByText("▶")).toHaveLength(1);
+    });
+
+    it("troca a capa por um bloco neutro quando a imagem falha ao carregar", async () => {
+      mockSearches();
+      const { container } = renderPage();
+      await screen.findByRole("button", { name: /^gatos · BR$/ });
+
+      const image = container.querySelector(`img[src="${COVER}"]`);
+      expect(image).not.toBeNull();
+      fireEvent.error(image as Element);
+
+      await waitFor(() => expect(container.querySelector(`img[src="${COVER}"]`)).toBeNull());
+      expect(screen.getAllByText("▶")).toHaveLength(2);
+    });
+  });
+
   describe("exclusão de pesquisas", () => {
     const searches = [
-      { id: "s1", query: "gatos", regionCode: "BR", resultCount: 1, fetchedAt: "2026-01-01" },
-      { id: "s2", query: null, regionCode: "US", resultCount: 1, fetchedAt: "2026-01-02" },
+      {
+        id: "s1",
+        query: "gatos",
+        regionCode: "BR",
+        resultCount: 1,
+        fetchedAt: "2026-01-01",
+        coverUrl: null,
+      },
+      {
+        id: "s2",
+        query: null,
+        regionCode: "US",
+        resultCount: 1,
+        fetchedAt: "2026-01-02",
+        coverUrl: null,
+      },
     ];
 
     function mockHistory(deleteResponse: { ok: boolean; status?: number }) {

@@ -249,8 +249,22 @@ export async function trendRoutes(app: FastifyInstance) {
       where: { userId: request.user.sub },
       orderBy: { fetchedAt: "desc" },
       take: 10,
+      // A capa da pesquisa é a miniatura do vídeo #1 do resultado — vem do
+      // cache (SearchVideo/Video), sem gastar cota do YouTube.
+      include: {
+        searchVideos: {
+          orderBy: { rank: "asc" },
+          take: 1,
+          include: { video: { select: { thumbnailUrl: true } } },
+        },
+      },
     });
-    return reply.send(searches);
+    return reply.send(
+      searches.map(({ searchVideos, ...search }) => ({
+        ...search,
+        coverUrl: searchVideos[0]?.video.thumbnailUrl || null,
+      })),
+    );
   });
 
   // Excluir pesquisas só remove o histórico/cache (Search + SearchVideo, em

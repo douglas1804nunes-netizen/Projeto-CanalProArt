@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { Cover } from "../components/Cover";
 import { getDefaultRegion } from "../preferences";
 
 type TrendVideo = {
@@ -38,6 +39,8 @@ type RecentSearch = {
   regionCode: string;
   resultCount: number;
   fetchedAt: string;
+  // Miniatura do vídeo #1 da pesquisa (null se a pesquisa ficou sem vídeos).
+  coverUrl: string | null;
 };
 
 type ResultState =
@@ -221,41 +224,52 @@ export function TrendsPage() {
       </form>
 
       {recentSearches.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          {recentSearches.map((search) => {
-            const label = `${search.query ?? "populares"} · ${search.regionCode}`;
-            return (
-              <span
-                key={search.id}
-                className="inline-flex items-center rounded-full border border-slate-200 bg-white text-xs text-slate-600"
-              >
-                <button
-                  type="button"
-                  onClick={() => handleRecentSearchClick(search)}
-                  className="rounded-l-full py-1 pr-2 pl-3 transition-colors hover:bg-slate-100"
+        <section className="mt-4" aria-label="Pesquisas recentes">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-medium text-slate-500">Pesquisas recentes</h2>
+            <button
+              type="button"
+              onClick={() => void handleClearHistory()}
+              className="px-1 text-xs text-slate-400 underline transition-colors hover:text-red-600"
+            >
+              Limpar histórico
+            </button>
+          </div>
+          <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {recentSearches.map((search) => {
+              const label = `${search.query ?? "populares"} · ${search.regionCode}`;
+              return (
+                <li
+                  key={search.id}
+                  className="relative overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
                 >
-                  {label}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteSearch(search)}
-                  aria-label={`Excluir pesquisa ${label}`}
-                  title="Excluir pesquisa"
-                  className="rounded-r-full py-1 pr-2 pl-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                >
-                  ✕
-                </button>
-              </span>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => void handleClearHistory()}
-            className="px-1 text-xs text-slate-400 underline transition-colors hover:text-red-600"
-          >
-            Limpar histórico
-          </button>
-        </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRecentSearchClick(search)}
+                    className="block w-full text-left transition-colors hover:bg-slate-50"
+                  >
+                    <Cover url={search.coverUrl} className="aspect-video w-full object-cover" />
+                    <span className="block truncate px-2 pt-1.5 text-xs font-medium text-slate-700">
+                      {label}
+                    </span>
+                  </button>
+                  <p className="px-2 pb-1.5 text-[11px] text-slate-400">
+                    {search.resultCount} {search.resultCount === 1 ? "vídeo" : "vídeos"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteSearch(search)}
+                    aria-label={`Excluir pesquisa ${label}`}
+                    title="Excluir pesquisa"
+                    className="absolute top-1 right-1 rounded-full bg-white/90 px-1.5 py-0.5 text-xs text-slate-500 shadow-sm transition-colors hover:bg-red-50 hover:text-red-600"
+                  >
+                    ✕
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
       {historyError && <p className="mt-2 text-xs text-red-600">{historyError}</p>}
 
@@ -295,20 +309,18 @@ export function TrendsPage() {
                     key={video.id}
                     className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
                   >
-                    {video.thumbnailUrl && (
-                      <a
-                        href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Abrir "${video.title}" no YouTube`}
-                      >
-                        <img
-                          src={video.thumbnailUrl}
-                          alt=""
-                          className="aspect-video w-full object-cover"
-                        />
-                      </a>
-                    )}
+                    <a
+                      href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Abrir "${video.title}" no YouTube`}
+                      className="block"
+                    >
+                      <Cover
+                        url={video.thumbnailUrl}
+                        className="aspect-video w-full object-cover"
+                      />
+                    </a>
                     <div className="p-3">
                       <p className="line-clamp-2 text-sm font-medium text-slate-900">
                         {video.title}

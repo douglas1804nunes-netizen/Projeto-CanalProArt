@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { Cover } from "../components/Cover";
 import {
   CartesianGrid,
   Line,
@@ -194,21 +195,15 @@ export function TrendAnalysisPage() {
                     key={video.id}
                     className="flex gap-4 rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
                   >
-                    {video.thumbnailUrl && (
-                      <a
-                        href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Abrir "${video.title}" no YouTube`}
-                        className="shrink-0"
-                      >
-                        <img
-                          src={video.thumbnailUrl}
-                          alt=""
-                          className="h-20 w-32 rounded object-cover"
-                        />
-                      </a>
-                    )}
+                    <a
+                      href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Abrir "${video.title}" no YouTube`}
+                      className="shrink-0"
+                    >
+                      <Cover url={video.thumbnailUrl} className="h-20 w-32 rounded object-cover" />
+                    </a>
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-1 text-sm font-medium text-slate-900">
                         {video.title}

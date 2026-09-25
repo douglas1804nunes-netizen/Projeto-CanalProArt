@@ -265,6 +265,55 @@ describe("Rotas de tendências (Fases 6-8)", () => {
     expect(searchesB.some((s) => s.id === search.id)).toBe(false);
   });
 
+  it("GET /api/trends/searches devolve a capa (miniatura do vídeo #1) de cada pesquisa", async () => {
+    const { token, userId } = await registerUser("history-cover");
+    const first = await seedVideo(`cover-first-${Date.now()}`, 100n);
+    const second = await seedVideo(`cover-second-${Date.now()}`, 200n);
+    await prisma.video.update({
+      where: { id: first.id },
+      data: { thumbnailUrl: "https://i.ytimg.com/vi/primeiro/hqdefault.jpg" },
+    });
+
+    const withCover = await prisma.search.create({
+      data: { userId, query: "com-capa", regionCode: "BR", resultCount: 2, fetchedAt: new Date() },
+    });
+    const withoutVideos = await prisma.search.create({
+      data: {
+        userId,
+        query: "sem-videos",
+        regionCode: "BR",
+        resultCount: 0,
+        fetchedAt: new Date(),
+      },
+    });
+    createdSearchIds.push(withCover.id, withoutVideos.id);
+    // rank 0 é o primeiro, mesmo criado depois — a capa segue o rank, não a ordem de inserção
+    await prisma.searchVideo.create({
+      data: { searchId: withCover.id, videoId: second.id, rank: 1 },
+    });
+    await prisma.searchVideo.create({
+      data: { searchId: withCover.id, videoId: first.id, rank: 0 },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/trends/searches",
+      cookies: { token },
+    });
+
+    const searches = response.json() as Array<{
+      id: string;
+      coverUrl: string | null;
+      searchVideos?: unknown;
+    }>;
+    expect(searches.find((s) => s.id === withCover.id)?.coverUrl).toBe(
+      "https://i.ytimg.com/vi/primeiro/hqdefault.jpg",
+    );
+    expect(searches.find((s) => s.id === withoutVideos.id)?.coverUrl).toBeNull();
+    // a relação interna não vaza na resposta
+    expect(searches.every((s) => s.searchVideos === undefined)).toBe(true);
+  });
+
   describe("exclusão de pesquisas", () => {
     // Só dois usuários pro bloco todo — cada cadastro conta no rate limit de
     // /api/auth/register (20/min), e este arquivo já usa vários.
