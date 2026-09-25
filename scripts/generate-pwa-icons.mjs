@@ -6,7 +6,13 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const outDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "frontend", "public", "icons");
+const outDir = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "frontend",
+  "public",
+  "icons",
+);
 
 const BG = [15, 23, 42]; // slate-900
 const FG = [255, 255, 255];
@@ -26,7 +32,12 @@ function shade(x, y, { rounded, scale }) {
   const v = 0.5 + (y - 0.5) / scale;
 
   // Triângulo de "play".
-  const ax = 0.36, ay = 0.28, bx = 0.36, by = 0.72, px = 0.74, py = 0.5;
+  const ax = 0.36,
+    ay = 0.28,
+    bx = 0.36,
+    by = 0.72,
+    px = 0.74,
+    py = 0.5;
   const sign = (x1, y1, x2, y2, x3, y3) => (x1 - x3) * (y2 - y3) - (x2 - x3) * (y1 - y3);
   const d1 = sign(u, v, ax, ay, bx, by);
   const d2 = sign(u, v, bx, by, px, py);
@@ -44,11 +55,23 @@ function render(size, opts) {
   const n = SUPERSAMPLE * SUPERSAMPLE;
   for (let py = 0; py < size; py++) {
     for (let px = 0; px < size; px++) {
-      let r = 0, g = 0, b = 0, a = 0;
+      let r = 0,
+        g = 0,
+        b = 0,
+        a = 0;
       for (let sy = 0; sy < SUPERSAMPLE; sy++) {
         for (let sx = 0; sx < SUPERSAMPLE; sx++) {
-          const c = shade((px + (sx + 0.5) / SUPERSAMPLE) / size, (py + (sy + 0.5) / SUPERSAMPLE) / size, opts);
-          if (c) { r += c[0]; g += c[1]; b += c[2]; a++; }
+          const c = shade(
+            (px + (sx + 0.5) / SUPERSAMPLE) / size,
+            (py + (sy + 0.5) / SUPERSAMPLE) / size,
+            opts,
+          );
+          if (c) {
+            r += c[0];
+            g += c[1];
+            b += c[2];
+            a++;
+          }
         }
       }
       const i = (py * size + px) * 4;
