@@ -11,8 +11,9 @@ através da API oficial do YouTube.
 > direitos declarados (ORIGINAL, AUTHORIZED, LICENSED ou PUBLIC_DOMAIN).
 
 **Status atual: Fase 17 — Histórico de publicações**, mais página de
-Configurações (diagnóstico das chaves), exclusão de pesquisas e link "Abrir no
-YouTube" nas tendências.
+Configurações (diagnóstico das chaves), capas e exclusão de pesquisas, exclusão
+de conteúdos, importação de vídeo por link direto e link "Abrir no YouTube" nas
+tendências.
 Veja o roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack

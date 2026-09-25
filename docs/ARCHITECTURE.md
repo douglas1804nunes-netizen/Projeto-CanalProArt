@@ -64,9 +64,11 @@ dependências de todos os pacotes.
 - `@fastify/rate-limit`: 100 req/min globais; `/api/auth/register` e
   `/api/auth/login` com limite próprio (20/min) contra força bruta.
 - `@fastify/helmet` com a config padrão (CSP `default-src 'self'`, etc.) —
-  compatível com o build do frontend (mesma origem, sem CDN externo, sem
-  script inline) sem precisar relaxar nada; validado com `curl` contra o
-  build de produção antes de assumir que funcionava.
+  compatível com o build do frontend (mesma origem, sem script inline);
+  validado com `curl` contra o build de produção antes de assumir que
+  funcionava. **Exceção**: `img-src` também libera `https://*.ytimg.com`
+  (miniaturas dos vídeos) — ver "Capas nas pesquisas e CSP" abaixo; o padrão
+  do helmet (`img-src 'self' data:`) bloqueava as capas só em produção.
 - Frontend: rotas fora de `/login` e `/register` ficam atrás de
   `RequireAuth` (redireciona pra `/login` se `GET /api/auth/me` não
   autenticar) — ver `src/auth/`.
@@ -620,6 +622,50 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
   navegador contra o Postgres local: excluir um chip persiste no banco, e
   "Testar conexões" com as chaves reais do `.env` confirmou YouTube Data
   API e Anthropic válidas.
+
+### Capas nas pesquisas e CSP (pós-Fase 17)
+
+- **Bug de produção corrigido**: a CSP padrão do helmet só permite imagem da
+  própria origem (`img-src 'self' data:`), então no deploy o navegador
+  bloqueava todas as capas de vídeo (servidas por `i.ytimg.com`). No dev o
+  Vite não aplica CSP, por isso nunca apareceu antes do deploy. Agora
+  `img-src` inclui `https://*.ytimg.com` — só imagens, só esse domínio; o
+  resto da política (scripts, `default-src`, `object-src`) não mudou.
+  Coberto por teste em `health.test.ts` e validado no navegador com o app
+  compilado em `NODE_ENV=production` (a mesma configuração do Render).
+- `GET /api/trends/searches` passa a devolver `coverUrl` em cada pesquisa: a
+  miniatura do vídeo de menor `rank` (#1) daquela pesquisa, lida do cache
+  (`SearchVideo`/`Video`) — não gasta cota do YouTube. `null` quando a
+  pesquisa não tem vídeos. A relação interna não vaza na resposta.
+- Frontend: as pesquisas recentes viram cartões com capa, nome, região e
+  quantidade de vídeos (✕ para excluir; "Limpar histórico" no cabeçalho). O
+  componente `components/Cover.tsx` mostra um bloco neutro quando não há URL
+  ou a imagem falha ao carregar (link expirado, bloqueio), em vez do ícone de
+  imagem quebrada; é usado também nos cards de resultado e na página de
+  análise.
+
+### Excluir conteúdos (pós-Fase 17)
+
+- `DELETE /api/content-projects/:id` (lista e página de detalhe têm o botão,
+  com confirmação). Apaga roteiros, títulos, descrições e `MediaUpload` (em
+  cascata no banco) e a pasta do projeto em `backend/uploads/` (depois do
+  commit: se a limpeza do disco falhar, só sobra lixo — não desfaz a exclusão).
+  Tudo numa transação, com um `AuditLog` (`CONTENT_PROJECT_DELETED`).
+- **Conteúdo já publicado no YouTube não pode ser excluído (409)**:
+  `PublishedVideo → ContentProject` é `onDelete: Restrict` desde a Fase 2, para
+  que o histórico de `/videos` não some por acidente. A alternativa é
+  arquivar (`status = ARCHIVED`). Excluir o conteúdo, aliás, não apagaria o
+  vídeo do YouTube. Tentativas que só **falharam** não são histórico que
+  valha preservar e saem junto com o conteúdo.
+- **Oportunidade**: se o conteúdo tinha levado a oportunidade para
+  `IN_PROGRESS` e nenhum outro conteúdo a usa mais, ela volta para `NEW`
+  (senão sumiria da lista de novas sem ter virado nada). `CONVERTED` e
+  `DISMISSED` não são tocadas.
+- **Testado**: 404 (inexistente e de outro usuário, sem excluir), cascata
+  completa + arquivo removido do disco + auditoria, as três situações da
+  oportunidade, 409 com o histórico preservado e exclusão levando as
+  tentativas falhas; no frontend, confirmação/cancelamento, erro do servidor
+  e navegação de volta à lista. Validado no navegador em modo produção.
 
 ### Importar vídeo por link direto (pós-Fase 17)
 
