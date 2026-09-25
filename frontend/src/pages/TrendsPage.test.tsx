@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TrendsPage } from "./TrendsPage";
@@ -158,7 +158,7 @@ describe("TrendsPage", () => {
 
     renderPage();
 
-    const chip = await screen.findByRole("button", { name: /gatos · BR/ });
+    const chip = await screen.findByRole("button", { name: /^gatos · BR$/ });
     fireEvent.click(chip);
 
     expect(await screen.findByText("Um vídeo em alta")).toBeInTheDocument();
@@ -169,5 +169,121 @@ describe("TrendsPage", () => {
         body: JSON.stringify({ query: "gatos", regionCode: "BR" }),
       }),
     );
+  });
+
+  it("cada vídeo tem um link pra abrir no YouTube em outra aba", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/trends/searches") {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          searchId: "search-1",
+          cached: false,
+          fetchedAt: new Date().toISOString(),
+          videos: [sampleVideo],
+        }),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
+    const link = await screen.findByRole("link", { name: /Abrir no YouTube/ });
+    expect(link).toHaveAttribute("href", "https://youtube.com/watch?v=yt-1");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+  });
+
+  describe("exclusão de pesquisas", () => {
+    const searches = [
+      { id: "s1", query: "gatos", regionCode: "BR", resultCount: 1, fetchedAt: "2026-01-01" },
+      { id: "s2", query: null, regionCode: "US", resultCount: 1, fetchedAt: "2026-01-02" },
+    ];
+
+    function mockHistory(deleteResponse: { ok: boolean; status?: number }) {
+      const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/trends/searches" && init?.method === "DELETE") {
+          return Promise.resolve({ ...deleteResponse, json: async () => ({ deleted: 2 }) });
+        }
+        if (url.startsWith("/api/trends/searches/") && init?.method === "DELETE") {
+          return Promise.resolve(deleteResponse);
+        }
+        if (url === "/api/trends/searches") {
+          return Promise.resolve({ ok: true, json: async () => searches });
+        }
+        return Promise.reject(new Error(`fetch não mockado para ${url}`));
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    it("exclui uma pesquisa do histórico e some da lista", async () => {
+      const fetchMock = mockHistory({ ok: true, status: 204 });
+      renderPage();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Excluir pesquisa gatos · BR" }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole("button", { name: /^gatos · BR$/ })).not.toBeInTheDocument(),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/trends/searches/s1",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+      // a outra pesquisa continua lá
+      expect(screen.getByRole("button", { name: /^populares · US$/ })).toBeInTheDocument();
+    });
+
+    it("mostra erro e mantém a pesquisa se a exclusão falha", async () => {
+      mockHistory({ ok: false, status: 500 });
+      renderPage();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Excluir pesquisa gatos · BR" }));
+
+      expect(await screen.findByText("Não foi possível excluir a pesquisa.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^gatos · BR$/ })).toBeInTheDocument();
+    });
+
+    it("limpa todo o histórico depois de confirmar", async () => {
+      vi.stubGlobal(
+        "confirm",
+        vi.fn(() => true),
+      );
+      const fetchMock = mockHistory({ ok: true, status: 200 });
+      renderPage();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Limpar histórico" }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole("button", { name: "Limpar histórico" })).not.toBeInTheDocument(),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/trends/searches",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+      expect(screen.queryByRole("button", { name: /gatos/ })).not.toBeInTheDocument();
+    });
+
+    it("não apaga nada se o usuário cancelar a confirmação", async () => {
+      vi.stubGlobal(
+        "confirm",
+        vi.fn(() => false),
+      );
+      const fetchMock = mockHistory({ ok: true, status: 200 });
+      renderPage();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Limpar histórico" }));
+
+      expect(screen.getByRole("button", { name: /^gatos · BR$/ })).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        "/api/trends/searches",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
   });
 });

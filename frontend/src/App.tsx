@@ -9,9 +9,9 @@ import { Dashboard } from "./pages/Dashboard";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { OpportunitiesPage } from "./pages/OpportunitiesPage";
-import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { PublishedVideosPage } from "./pages/PublishedVideosPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { TrendAnalysisPage } from "./pages/TrendAnalysisPage";
 import { TrendsPage } from "./pages/TrendsPage";
 import { YoutubePage } from "./pages/YoutubePage";
@@ -34,10 +34,7 @@ export default function App() {
             <Route path="/content/:id/preview" element={<ContentProjectPreviewPage />} />
             <Route path="/videos" element={<PublishedVideosPage />} />
             <Route path="/youtube" element={<YoutubePage />} />
-            <Route
-              path="/settings"
-              element={<PlaceholderPage title="Configurações" phase="uma fase futura" />}
-            />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>

@@ -195,11 +195,19 @@ export function TrendAnalysisPage() {
                     className="flex gap-4 rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
                   >
                     {video.thumbnailUrl && (
-                      <img
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        className="h-20 w-32 shrink-0 rounded object-cover"
-                      />
+                      <a
+                        href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Abrir "${video.title}" no YouTube`}
+                        className="shrink-0"
+                      >
+                        <img
+                          src={video.thumbnailUrl}
+                          alt=""
+                          className="h-20 w-32 rounded object-cover"
+                        />
+                      </a>
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-1 text-sm font-medium text-slate-900">
@@ -217,6 +225,14 @@ export function TrendAnalysisPage() {
                         {video.velocity !== null && (
                           <span>Velocidade: {Math.round(video.velocity)} views/h</span>
                         )}
+                        <a
+                          href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-slate-600 underline hover:text-slate-900"
+                        >
+                          Abrir no YouTube ↗
+                        </a>
                       </div>
                     </div>
                   </li>

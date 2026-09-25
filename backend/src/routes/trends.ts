@@ -253,6 +253,36 @@ export async function trendRoutes(app: FastifyInstance) {
     return reply.send(searches);
   });
 
+  // Excluir pesquisas só remove o histórico/cache (Search + SearchVideo, em
+  // cascata) — Trend/Opportunity/ContentProject já gerados a partir delas
+  // ficam, porque são o resultado da análise, não o log de buscas. Efeito
+  // colateral: repetir a mesma busca depois deixa de vir do cache e gasta
+  // cota do YouTube de novo.
+  app.delete(
+    "/api/trends/searches/:id",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      // deleteMany com userId no filtro: 404 igual pra "não existe" e "é de
+      // outro usuário" (não revela se o id existe), sem race entre
+      // findUnique e delete.
+      const { count } = await prisma.search.deleteMany({
+        where: { id, userId: request.user.sub },
+      });
+      if (count === 0) {
+        return reply.status(404).send({ error: "Pesquisa não encontrada" });
+      }
+
+      return reply.status(204).send();
+    },
+  );
+
+  app.delete("/api/trends/searches", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { count } = await prisma.search.deleteMany({ where: { userId: request.user.sub } });
+    return reply.send({ deleted: count });
+  });
+
   // Fase 8: lista os trends já calculados do usuário, mais recentes primeiro
   // — visão geral do que foi classificado como HOT/RISING/etc. até agora.
   app.get("/api/trends", { preHandler: [app.authenticate] }, async (request, reply) => {

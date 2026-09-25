@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { getDefaultRegion } from "../preferences";
 
 type TrendVideo = {
   id: string;
@@ -82,9 +83,10 @@ const CLASSIFICATION_STYLES: Record<TrendClassification, string> = {
 
 export function TrendsPage() {
   const [query, setQuery] = useState("");
-  const [regionCode, setRegionCode] = useState("BR");
+  const [regionCode, setRegionCode] = useState(getDefaultRegion);
   const [state, setState] = useState<ResultState>({ status: "idle" });
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const loadRecentSearches = useCallback(async () => {
     try {
@@ -137,6 +139,48 @@ export function TrendsPage() {
     void runSearch(search.query ?? "", search.regionCode);
   }
 
+  async function handleDeleteSearch(search: RecentSearch) {
+    setHistoryError(null);
+    try {
+      const response = await fetch(`/api/trends/searches/${search.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      // 404 = já foi removida (outra aba, por exemplo) — some da lista igual.
+      if (!response.ok && response.status !== 404) {
+        setHistoryError("Não foi possível excluir a pesquisa.");
+        return;
+      }
+      setRecentSearches((current) => current.filter((item) => item.id !== search.id));
+    } catch {
+      setHistoryError("Não foi possível conectar ao backend.");
+    }
+  }
+
+  async function handleClearHistory() {
+    // O histórico também é o cache das buscas — repetir uma busca apagada
+    // gasta cota do YouTube de novo, então vale confirmar.
+    const confirmed = window.confirm(
+      "Excluir todo o histórico de pesquisas? Repetir uma busca depois vai gastar cota do YouTube de novo.",
+    );
+    if (!confirmed) return;
+
+    setHistoryError(null);
+    try {
+      const response = await fetch("/api/trends/searches", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        setHistoryError("Não foi possível limpar o histórico.");
+        return;
+      }
+      setRecentSearches([]);
+    } catch {
+      setHistoryError("Não foi possível conectar ao backend.");
+    }
+  }
+
   return (
     <div className="max-w-4xl">
       <h1 className="text-2xl font-semibold tracking-tight">Tendências</h1>
@@ -177,19 +221,43 @@ export function TrendsPage() {
       </form>
 
       {recentSearches.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {recentSearches.map((search) => (
-            <button
-              key={search.id}
-              type="button"
-              onClick={() => handleRecentSearchClick(search)}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-100"
-            >
-              {search.query ?? "populares"} · {search.regionCode}
-            </button>
-          ))}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {recentSearches.map((search) => {
+            const label = `${search.query ?? "populares"} · ${search.regionCode}`;
+            return (
+              <span
+                key={search.id}
+                className="inline-flex items-center rounded-full border border-slate-200 bg-white text-xs text-slate-600"
+              >
+                <button
+                  type="button"
+                  onClick={() => handleRecentSearchClick(search)}
+                  className="rounded-l-full py-1 pr-2 pl-3 transition-colors hover:bg-slate-100"
+                >
+                  {label}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteSearch(search)}
+                  aria-label={`Excluir pesquisa ${label}`}
+                  title="Excluir pesquisa"
+                  className="rounded-r-full py-1 pr-2 pl-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                >
+                  ✕
+                </button>
+              </span>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => void handleClearHistory()}
+            className="px-1 text-xs text-slate-400 underline transition-colors hover:text-red-600"
+          >
+            Limpar histórico
+          </button>
         </div>
       )}
+      {historyError && <p className="mt-2 text-xs text-red-600">{historyError}</p>}
 
       <div className="mt-6">
         {state.status === "error" && <p className="text-sm text-red-600">{state.message}</p>}
@@ -228,11 +296,18 @@ export function TrendsPage() {
                     className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
                   >
                     {video.thumbnailUrl && (
-                      <img
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        className="aspect-video w-full object-cover"
-                      />
+                      <a
+                        href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Abrir "${video.title}" no YouTube`}
+                      >
+                        <img
+                          src={video.thumbnailUrl}
+                          alt=""
+                          className="aspect-video w-full object-cover"
+                        />
+                      </a>
                     )}
                     <div className="p-3">
                       <p className="line-clamp-2 text-sm font-medium text-slate-900">
@@ -247,6 +322,14 @@ export function TrendsPage() {
                         {(video.engagementRate * 100).toFixed(1)}% engajamento
                         {formatVelocity(video.velocity) && ` · ${formatVelocity(video.velocity)}`}
                       </p>
+                      <a
+                        href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 inline-block text-xs font-medium text-slate-600 underline hover:text-slate-900"
+                      >
+                        Abrir no YouTube ↗
+                      </a>
                     </div>
                   </li>
                 ))}

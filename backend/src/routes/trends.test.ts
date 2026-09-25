@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app.js";
 import { prisma } from "../prisma.js";
 import { maybeCreateOpportunity } from "./trends.js";
@@ -263,6 +263,113 @@ describe("Rotas de tendências (Fases 6-8)", () => {
 
     expect(searchesA.some((s) => s.id === search.id)).toBe(true);
     expect(searchesB.some((s) => s.id === search.id)).toBe(false);
+  });
+
+  describe("exclusão de pesquisas", () => {
+    // Só dois usuários pro bloco todo — cada cadastro conta no rate limit de
+    // /api/auth/register (20/min), e este arquivo já usa vários.
+    let owner: { token: string; userId: string };
+    let other: { token: string; userId: string };
+
+    beforeAll(async () => {
+      owner = await registerUser("delete-owner");
+      other = await registerUser("delete-other");
+    });
+
+    async function seedSearch(userId: string, query: string, videoId?: string) {
+      const search = await prisma.search.create({
+        data: { userId, query, regionCode: "BR", resultCount: 0, fetchedAt: new Date() },
+      });
+      createdSearchIds.push(search.id);
+      if (videoId) {
+        await prisma.searchVideo.create({ data: { searchId: search.id, videoId, rank: 0 } });
+      }
+      return search;
+    }
+
+    it("DELETE /api/trends/searches/:id exige autenticação", async () => {
+      const response = await app.inject({ method: "DELETE", url: "/api/trends/searches/x" });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("DELETE /api/trends/searches exige autenticação", async () => {
+      const response = await app.inject({ method: "DELETE", url: "/api/trends/searches" });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("exclui uma pesquisa (e o cache de vídeos dela), mas preserva o Trend já calculado", async () => {
+      const { token, userId } = owner;
+      const video = await seedVideo(`delete-one-${Date.now()}`, 100n);
+      const search = await seedSearch(userId, "apagar-esta", video.id);
+      const trend = await prisma.trend.create({
+        data: {
+          userId,
+          topic: "apagar-esta",
+          regionCode: "BR",
+          trendScore: 50,
+          classification: "STABLE",
+          fetchedAt: new Date(),
+        },
+      });
+      createdTrendIds.push(trend.id);
+
+      const response = await app.inject({
+        method: "DELETE",
+        url: `/api/trends/searches/${search.id}`,
+        cookies: { token },
+      });
+
+      expect(response.statusCode).toBe(204);
+      expect(await prisma.search.findUnique({ where: { id: search.id } })).toBeNull();
+      expect(await prisma.searchVideo.count({ where: { searchId: search.id } })).toBe(0);
+      // o vídeo (cache global) e o Trend não são tocados
+      expect(await prisma.video.findUnique({ where: { id: video.id } })).not.toBeNull();
+      expect(await prisma.trend.findUnique({ where: { id: trend.id } })).not.toBeNull();
+    });
+
+    it("devolve 404 pra pesquisa inexistente", async () => {
+      const response = await app.inject({
+        method: "DELETE",
+        url: "/api/trends/searches/id-que-nao-existe",
+        cookies: { token: owner.token },
+      });
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    it("não deixa excluir a pesquisa de outro usuário", async () => {
+      const search = await seedSearch(owner.userId, "so-do-owner");
+
+      const response = await app.inject({
+        method: "DELETE",
+        url: `/api/trends/searches/${search.id}`,
+        cookies: { token: other.token },
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(await prisma.search.findUnique({ where: { id: search.id } })).not.toBeNull();
+    });
+
+    it("DELETE /api/trends/searches limpa só o histórico do próprio usuário", async () => {
+      // Apaga TUDO do owner (inclusive o que os testes acima deixaram) — por
+      // isso é o último do bloco.
+      const before = await prisma.search.count({ where: { userId: owner.userId } });
+      const searchA1 = await seedSearch(owner.userId, "a1");
+      const searchA2 = await seedSearch(owner.userId, "a2");
+      const searchB = await seedSearch(other.userId, "b1");
+
+      const response = await app.inject({
+        method: "DELETE",
+        url: "/api/trends/searches",
+        cookies: { token: owner.token },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ deleted: before + 2 });
+      expect(await prisma.search.findUnique({ where: { id: searchA1.id } })).toBeNull();
+      expect(await prisma.search.findUnique({ where: { id: searchA2.id } })).toBeNull();
+      expect(await prisma.search.findUnique({ where: { id: searchB.id } })).not.toBeNull();
+    });
   });
 
   // Fase 10: página de análise — GET /api/trends/:id.
