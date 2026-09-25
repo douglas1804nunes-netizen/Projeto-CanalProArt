@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 type ContentProjectStatus = "DRAFT" | "IN_PROGRESS" | "READY" | "PUBLISHED" | "ARCHIVED";
 
@@ -90,6 +90,7 @@ const RIGHTS_STATUS_OPTIONS: RightsStatus[] = [
 
 export function ContentProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [state, setState] = useState<DetailState>({ status: "loading" });
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -225,6 +226,34 @@ export function ContentProjectDetailPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  async function handleDeleteProject(title: string) {
+    const confirmed = window.confirm(
+      `Excluir "${title}"? Isso apaga o roteiro, os títulos, a descrição e o vídeo enviado ` +
+        "deste conteúdo. Não dá para desfazer.",
+    );
+    if (!confirmed) return;
+
+    setBusy("project-delete");
+    setActionError(null);
+    try {
+      const response = await fetch(`/api/content-projects/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok && response.status !== 404) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        setActionError(body.error ?? `Não foi possível excluir (HTTP ${response.status}).`);
+        return;
+      }
+      // Não recarrega o projeto (ia dar 404): volta pra lista.
+      navigate("/content", { replace: true });
+    } catch {
+      setActionError("Não foi possível conectar ao backend.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleImportMedia(event: FormEvent) {
     event.preventDefault();
     const url = importUrl.trim();
@@ -298,6 +327,14 @@ export function ContentProjectDetailPage() {
             >
               Ver prévia
             </Link>
+            <button
+              type="button"
+              onClick={() => void handleDeleteProject(state.project.title)}
+              disabled={busy === "project-delete"}
+              className="ml-auto rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+            >
+              {busy === "project-delete" ? "Excluindo…" : "Excluir conteúdo"}
+            </button>
           </div>
 
           {actionError && <p className="mt-3 text-sm text-red-600">{actionError}</p>}

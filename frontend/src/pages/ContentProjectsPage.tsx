@@ -37,6 +37,8 @@ export function ContentProjectsPage() {
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const loadProjects = useCallback(async () => {
@@ -60,6 +62,38 @@ export function ContentProjectsPage() {
   useEffect(() => {
     void loadProjects();
   }, [loadProjects]);
+
+  async function handleDelete(project: ContentProject) {
+    const confirmed = window.confirm(
+      `Excluir "${project.title}"? Isso apaga o roteiro, os títulos, a descrição e o vídeo ` +
+        "enviado deste conteúdo. Não dá para desfazer.",
+    );
+    if (!confirmed) return;
+
+    setDeleteError(null);
+    setDeletingId(project.id);
+    try {
+      const response = await fetch(`/api/content-projects/${project.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      // 404 = já não existe (outra aba, por exemplo) — some da lista igual.
+      if (!response.ok && response.status !== 404) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        setDeleteError(body.error ?? `Não foi possível excluir (HTTP ${response.status}).`);
+        return;
+      }
+      setState((current) =>
+        current.status === "success"
+          ? { status: "success", projects: current.projects.filter((p) => p.id !== project.id) }
+          : current,
+      );
+    } catch {
+      setDeleteError("Não foi possível conectar ao backend.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
@@ -115,6 +149,8 @@ export function ContentProjectsPage() {
       </form>
       {createError && <p className="mt-2 text-sm text-red-600">{createError}</p>}
 
+      {deleteError && <p className="mt-4 text-sm text-red-600">{deleteError}</p>}
+
       <div className="mt-6">
         {state.status === "loading" && <p className="text-sm text-slate-500">Carregando…</p>}
         {state.status === "error" && <p className="text-sm text-red-600">{state.message}</p>}
@@ -126,23 +162,32 @@ export function ContentProjectsPage() {
         {state.status === "success" && state.projects.length > 0 && (
           <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white shadow-sm">
             {state.projects.map((project) => (
-              <li key={project.id}>
+              <li key={project.id} className="flex items-center hover:bg-slate-50">
                 <Link
                   to={`/content/${project.id}`}
-                  className="flex items-center justify-between gap-3 p-4 hover:bg-slate-50"
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3 p-4"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">{project.title}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900">{project.title}</p>
                     <p className="text-xs text-slate-500">
                       Atualizado em {new Date(project.updatedAt).toLocaleString("pt-BR")}
                     </p>
                   </div>
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[project.status]}`}
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[project.status]}`}
                   >
                     {STATUS_LABELS[project.status]}
                   </span>
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(project)}
+                  disabled={deletingId === project.id}
+                  aria-label={`Excluir conteúdo ${project.title}`}
+                  className="mr-3 shrink-0 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                >
+                  {deletingId === project.id ? "Excluindo…" : "Excluir"}
+                </button>
               </li>
             ))}
           </ul>

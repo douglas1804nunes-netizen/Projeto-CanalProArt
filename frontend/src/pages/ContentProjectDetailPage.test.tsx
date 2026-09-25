@@ -233,6 +233,91 @@ describe("ContentProjectDetailPage", () => {
     });
   });
 
+  describe("excluir conteúdo", () => {
+    function renderWithList() {
+      return render(
+        <MemoryRouter initialEntries={["/content/project-1"]}>
+          <Routes>
+            <Route path="/content" element={<p>Lista de conteúdos</p>} />
+            <Route path="/content/:id" element={<ContentProjectDetailPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+    }
+
+    function mockApi(deleteResponse: { ok: boolean; status?: number; body?: unknown }) {
+      const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/content-projects/project-1" && init?.method === "DELETE") {
+          return Promise.resolve({
+            ok: deleteResponse.ok,
+            status: deleteResponse.status ?? 204,
+            json: async () => deleteResponse.body ?? {},
+          });
+        }
+        if (url === "/api/content-projects/project-1") {
+          return Promise.resolve({ ok: true, json: async () => emptyProject });
+        }
+        return Promise.reject(new Error(`fetch não mockado para ${url}`));
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    it("exclui depois de confirmar e volta pra lista de conteúdos", async () => {
+      vi.stubGlobal(
+        "confirm",
+        vi.fn(() => true),
+      );
+      const fetchMock = mockApi({ ok: true });
+      renderWithList();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Excluir conteúdo" }));
+
+      expect(await screen.findByText("Lista de conteúdos")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/content-projects/project-1",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+
+    it("fica na página se o usuário cancelar a confirmação", async () => {
+      vi.stubGlobal(
+        "confirm",
+        vi.fn(() => false),
+      );
+      const fetchMock = mockApi({ ok: true });
+      renderWithList();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Excluir conteúdo" }));
+
+      expect(screen.queryByText("Lista de conteúdos")).not.toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        "/api/content-projects/project-1",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+
+    it("mostra o motivo e não sai da página quando o servidor recusa", async () => {
+      vi.stubGlobal(
+        "confirm",
+        vi.fn(() => true),
+      );
+      mockApi({
+        ok: false,
+        status: 409,
+        body: { error: "Este conteúdo já foi publicado no YouTube — arquive-o em vez de excluir." },
+      });
+      renderWithList();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Excluir conteúdo" }));
+
+      expect(await screen.findByText(/arquive-o em vez de excluir/)).toBeInTheDocument();
+      expect(screen.queryByText("Lista de conteúdos")).not.toBeInTheDocument();
+      expect(screen.getByText("Vídeo sobre gatos")).toBeInTheDocument();
+    });
+  });
+
   describe("importar por link", () => {
     const importedProject = {
       ...emptyProject,

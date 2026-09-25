@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createAIProvider } from "@canalproart/services";
 import { env } from "../env.js";
+import { removeProjectUploads } from "../media/storage.js";
 import { prisma } from "../prisma.js";
 
 // Mesmo custo por chamada dos endpoints de /api/ai/* (Fase 11) — as rotas
@@ -148,6 +149,74 @@ export async function contentProjectRoutes(app: FastifyInstance) {
 
       const updated = await prisma.contentProject.update({ where: { id }, data: parsed.data });
       return reply.send(updated);
+    },
+  );
+
+  // Excluir um conteúdo apaga roteiros/títulos/descrições/mídia (cascata no
+  // banco) e os arquivos do disco. Duas regras vêm do schema/fluxo:
+  // - PublishedVideo → ContentProject é onDelete: Restrict (histórico de
+  //   publicações não some por acidente). Um conteúdo já PUBLICADO no
+  //   YouTube não pode ser excluído (409; a alternativa é arquivar, status
+  //   ARCHIVED). Tentativas que FALHARAM não são histórico que valha
+  //   preservar: saem junto.
+  // - Se o conteúdo tinha "puxado" uma oportunidade pra IN_PROGRESS e mais
+  //   nenhum outro conteúdo a usa, ela volta pra NEW (senão sumiria da
+  //   lista de "novas" sem ter virado nada). CONVERTED/DISMISSED ficam.
+  app.delete(
+    "/api/content-projects/:id",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const project = await loadOwnedProject(request.user.sub, id);
+      if (!project) {
+        return reply.status(404).send({ error: "Projeto não encontrado" });
+      }
+
+      const published = await prisma.publishedVideo.count({
+        where: { contentProjectId: id, status: "PUBLISHED" },
+      });
+      if (published > 0) {
+        return reply.status(409).send({
+          error:
+            "Este conteúdo já foi publicado no YouTube e fica no histórico de vídeos — " +
+            "arquive-o em vez de excluir.",
+        });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.publishedVideo.deleteMany({ where: { contentProjectId: id } });
+        await tx.contentProject.delete({ where: { id } });
+
+        if (project.opportunityId) {
+          const stillUsed = await tx.contentProject.count({
+            where: { opportunityId: project.opportunityId },
+          });
+          if (stillUsed === 0) {
+            await tx.opportunity.updateMany({
+              where: { id: project.opportunityId, status: "IN_PROGRESS" },
+              data: { status: "NEW" },
+            });
+          }
+        }
+
+        await tx.auditLog.create({
+          data: {
+            userId: request.user.sub,
+            action: "CONTENT_PROJECT_DELETED",
+            entityType: "ContentProject",
+            entityId: id,
+            metadata: { title: project.title, status: project.status },
+          },
+        });
+      });
+
+      // Depois do commit: se a limpeza do disco falhar, o registro já foi e
+      // sobra só lixo em backend/uploads — não vale desfazer a exclusão.
+      await removeProjectUploads(id).catch((error: unknown) => {
+        app.log.warn({ err: error, projectId: id }, "Falha ao apagar os arquivos do projeto");
+      });
+
+      return reply.status(204).send();
     },
   );
 

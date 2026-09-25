@@ -8,6 +8,7 @@ import type { MediaUpload } from "@prisma/client";
 import { z } from "zod";
 import { rootDir } from "../env.js";
 import { MAX_MEDIA_UPLOAD_BYTES } from "../media/limits.js";
+import { UPLOADS_DIR } from "../media/storage.js";
 import { downloadVideoFromUrl, ImportUrlError } from "../media/remoteDownload.js";
 import { prisma } from "../prisma.js";
 
@@ -17,13 +18,6 @@ const rightsSchema = z.object({
   rightsStatus: z.enum(RIGHTS_STATUS_VALUES),
   containsSyntheticMedia: z.boolean(),
 });
-
-// Fase 13: armazenamento em disco local (backend/uploads/, gitignored) —
-// decisão deliberada pra não depender de uma conta de object storage que o
-// usuário ainda não tem (mesma situação do YouTube/Anthropic). Não
-// sobrevive a um redeploy no Render (filesystem efêmero) — ver
-// docs/ARCHITECTURE.md, pendência registrada pra Fase 20.
-const UPLOADS_DIR = path.join(rootDir, "backend", "uploads");
 
 async function loadOwnedProject(userId: string, id: string) {
   return prisma.contentProject.findFirst({ where: { id, userId } });

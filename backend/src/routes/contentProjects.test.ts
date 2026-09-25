@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { buildApp } from "../app.js";
+import { UPLOADS_DIR } from "../media/storage.js";
 import { prisma } from "../prisma.js";
 
 // Fase 12 — assim como a Fase 11, a chamada de verdade ao AIProvider não dá
@@ -18,6 +21,7 @@ describe("Rotas de content projects (Fase 12)", () => {
   const createdProjectIds: string[] = [];
   const createdTrendIds: string[] = [];
   const createdOpportunityIds: string[] = [];
+  const createdYoutubeAccountIds: string[] = [];
   let mainToken: string;
   let mainUserId: string;
 
@@ -28,6 +32,11 @@ describe("Rotas de content projects (Fase 12)", () => {
   });
 
   afterAll(async () => {
+    // PublishedVideo → ContentProject é Restrict: as publicações precisam sair antes.
+    await prisma.publishedVideo.deleteMany({
+      where: { contentProjectId: { in: createdProjectIds } },
+    });
+    await prisma.auditLog.deleteMany({ where: { entityId: { in: createdProjectIds } } });
     await prisma.generatedDescription.deleteMany({
       where: { contentProjectId: { in: createdProjectIds } },
     });
@@ -36,6 +45,12 @@ describe("Rotas de content projects (Fase 12)", () => {
     });
     await prisma.script.deleteMany({ where: { contentProjectId: { in: createdProjectIds } } });
     await prisma.contentProject.deleteMany({ where: { id: { in: createdProjectIds } } });
+    await prisma.youtubeAccount.deleteMany({ where: { id: { in: createdYoutubeAccountIds } } });
+    await Promise.all(
+      createdProjectIds.map((id) =>
+        rm(path.join(UPLOADS_DIR, id), { recursive: true, force: true }),
+      ),
+    );
     await prisma.opportunity.deleteMany({ where: { id: { in: createdOpportunityIds } } });
     await prisma.trend.deleteMany({ where: { id: { in: createdTrendIds } } });
     await prisma.user.deleteMany({ where: { email: { in: createdEmails } } });
@@ -355,5 +370,173 @@ describe("Rotas de content projects (Fase 12)", () => {
     const refreshedB = await prisma.generatedDescription.findUnique({ where: { id: descB.id } });
     expect(refreshedA?.selected).toBe(false);
     expect(refreshedB?.selected).toBe(true);
+  });
+
+  describe("DELETE /api/content-projects/:id", () => {
+    function deleteProject(token: string, id: string) {
+      return app.inject({
+        method: "DELETE",
+        url: `/api/content-projects/${id}`,
+        cookies: { token },
+      });
+    }
+
+    async function createProjectForOpportunity(opportunityId: string) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/content-projects",
+        cookies: { token: mainToken },
+        payload: { title: "Da oportunidade", opportunityId },
+      });
+      const project = response.json() as { id: string };
+      createdProjectIds.push(project.id);
+      return project;
+    }
+
+    async function seedPublication(projectId: string, status: "PUBLISHED" | "FAILED") {
+      const youtubeAccount = await prisma.youtubeAccount.create({
+        data: {
+          userId: mainUserId,
+          channelId: `channel-del-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          channelTitle: "Canal Teste",
+          accessToken: "fake",
+          refreshToken: "fake",
+          scopes: [],
+          expiresAt: new Date(Date.now() + 3_600_000),
+        },
+      });
+      createdYoutubeAccountIds.push(youtubeAccount.id);
+      return prisma.publishedVideo.create({
+        data: {
+          contentProjectId: projectId,
+          youtubeAccountId: youtubeAccount.id,
+          youtubeVideoId: status === "PUBLISHED" ? "yt-abc" : undefined,
+          rightsStatus: "ORIGINAL",
+          status,
+          publishedAt: status === "PUBLISHED" ? new Date() : null,
+        },
+      });
+    }
+
+    async function opportunityStatus(id: string) {
+      return (await prisma.opportunity.findUniqueOrThrow({ where: { id } })).status;
+    }
+
+    it("exige autenticação", async () => {
+      const response = await app.inject({ method: "DELETE", url: "/api/content-projects/x" });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("devolve 404 pra projeto inexistente", async () => {
+      expect((await deleteProject(mainToken, "id-que-nao-existe")).statusCode).toBe(404);
+    });
+
+    it("devolve 404 (e não exclui) pra projeto de outro usuário", async () => {
+      const { token: otherToken } = await registerUser("delete-other");
+      const project = await createProject(mainToken);
+
+      expect((await deleteProject(otherToken, project.id)).statusCode).toBe(404);
+      expect(await prisma.contentProject.findUnique({ where: { id: project.id } })).not.toBeNull();
+    });
+
+    it("exclui o projeto com roteiro, títulos, descrição, vídeo e arquivos do disco", async () => {
+      const project = await createProject(mainToken, "Para excluir");
+      await prisma.script.create({
+        data: { contentProjectId: project.id, content: "roteiro", aiProvider: "anthropic" },
+      });
+      await prisma.generatedTitle.create({ data: { contentProjectId: project.id, title: "T" } });
+      await prisma.generatedDescription.create({
+        data: { contentProjectId: project.id, description: "D" },
+      });
+      await prisma.mediaUpload.create({
+        data: {
+          contentProjectId: project.id,
+          fileName: "v.mp4",
+          filePath: `uploads/${project.id}/v.mp4`,
+          mimeType: "video/mp4",
+          sizeBytes: 5n,
+        },
+      });
+      await mkdir(path.join(UPLOADS_DIR, project.id), { recursive: true });
+      await writeFile(path.join(UPLOADS_DIR, project.id, "v.mp4"), "bytes");
+
+      const response = await deleteProject(mainToken, project.id);
+
+      expect(response.statusCode).toBe(204);
+      expect(await prisma.contentProject.findUnique({ where: { id: project.id } })).toBeNull();
+      const where = { contentProjectId: project.id };
+      expect(await prisma.script.count({ where })).toBe(0);
+      expect(await prisma.generatedTitle.count({ where })).toBe(0);
+      expect(await prisma.generatedDescription.count({ where })).toBe(0);
+      expect(await prisma.mediaUpload.count({ where })).toBe(0);
+      await expect(readdir(path.join(UPLOADS_DIR, project.id))).rejects.toThrow(/ENOENT/);
+
+      const log = await prisma.auditLog.findFirst({ where: { entityId: project.id } });
+      expect(log).toMatchObject({
+        userId: mainUserId,
+        action: "CONTENT_PROJECT_DELETED",
+        metadata: { title: "Para excluir", status: "DRAFT" },
+      });
+    });
+
+    it("a oportunidade que estava IN_PROGRESS volta pra NEW quando nenhum outro conteúdo a usa", async () => {
+      const opportunity = await seedOpportunity(mainUserId, "NEW");
+      const project = await createProjectForOpportunity(opportunity.id);
+      expect(await opportunityStatus(opportunity.id)).toBe("IN_PROGRESS");
+
+      await deleteProject(mainToken, project.id);
+
+      expect(await opportunityStatus(opportunity.id)).toBe("NEW");
+    });
+
+    it("a oportunidade continua IN_PROGRESS enquanto outro conteúdo ainda a usa", async () => {
+      const opportunity = await seedOpportunity(mainUserId, "NEW");
+      const first = await createProjectForOpportunity(opportunity.id);
+      const second = await createProjectForOpportunity(opportunity.id);
+
+      await deleteProject(mainToken, first.id);
+      expect(await opportunityStatus(opportunity.id)).toBe("IN_PROGRESS");
+
+      await deleteProject(mainToken, second.id);
+      expect(await opportunityStatus(opportunity.id)).toBe("NEW");
+    });
+
+    it("não mexe numa oportunidade que já foi CONVERTED", async () => {
+      const opportunity = await seedOpportunity(mainUserId, "NEW");
+      const project = await createProjectForOpportunity(opportunity.id);
+      await prisma.opportunity.update({
+        where: { id: opportunity.id },
+        data: { status: "CONVERTED" },
+      });
+
+      await deleteProject(mainToken, project.id);
+
+      expect(await opportunityStatus(opportunity.id)).toBe("CONVERTED");
+    });
+
+    it("recusa (409) excluir um conteúdo já publicado no YouTube e preserva o histórico", async () => {
+      const project = await createProject(mainToken, "Já publicado");
+      const publication = await seedPublication(project.id, "PUBLISHED");
+
+      const response = await deleteProject(mainToken, project.id);
+
+      expect(response.statusCode).toBe(409);
+      expect((response.json() as { error: string }).error).toMatch(/arquive/);
+      expect(await prisma.contentProject.findUnique({ where: { id: project.id } })).not.toBeNull();
+      expect(
+        await prisma.publishedVideo.findUnique({ where: { id: publication.id } }),
+      ).not.toBeNull();
+    });
+
+    it("exclui um conteúdo cujas tentativas de publicação só falharam (levando as tentativas junto)", async () => {
+      const project = await createProject(mainToken, "Só falhas");
+      const attempt = await seedPublication(project.id, "FAILED");
+
+      const response = await deleteProject(mainToken, project.id);
+
+      expect(response.statusCode).toBe(204);
+      expect(await prisma.contentProject.findUnique({ where: { id: project.id } })).toBeNull();
+      expect(await prisma.publishedVideo.findUnique({ where: { id: attempt.id } })).toBeNull();
+    });
   });
 });
