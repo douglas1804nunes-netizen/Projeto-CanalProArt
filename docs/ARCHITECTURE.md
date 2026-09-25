@@ -574,6 +574,101 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
   aparecem, o link "Ver no YouTube" só no sucesso e aponta pro
   `youtubeVideoId` certo.
 
+### Configurações, exclusão de pesquisas e abrir vídeo (pós-Fase 17)
+
+- **Excluir pesquisas**: `DELETE /api/trends/searches/:id` (uma) e `DELETE
+/api/trends/searches` (todas do usuário). Só remove o histórico/cache
+  (`Search` + `SearchVideo` em cascata); `Trend`/`Opportunity`/
+  `ContentProject` já gerados ficam — são o resultado da análise, não o log
+  de buscas. Usa `deleteMany` com `userId` no filtro: 404 idêntico para "não
+  existe" e "é de outro usuário". Efeito colateral documentado na UI: repetir
+  uma busca apagada não vem mais do cache e gasta cota do YouTube. Na
+  `TrendsPage`, cada chip ganhou um ✕ e há "Limpar histórico" (com
+  confirmação); o mesmo botão existe em Configurações.
+- **Abrir o vídeo**: cada card de tendência (`TrendsPage`) e cada vídeo da
+  análise (`TrendAnalysisPage`) tem um link "Abrir no YouTube" (nova aba,
+  `rel="noopener noreferrer"`), além da thumbnail clicável.
+- **Sem download de vídeos de terceiros — de propósito.** Baixar e reenviar
+  vídeo alheio ao próprio canal viola direitos autorais e a política de
+  "conteúdo reutilizado" do YouTube (o canal perde monetização ou leva
+  strike), e contraria a regra do projeto (ver README). O caminho suportado
+  para transformar uma tendência em vídeo é: Oportunidade → "Criar
+  conteúdo" (roteiro/título/descrição originais via IA) → upload de um
+  vídeo **próprio ou autorizado** com direitos declarados (Fases 13–16).
+- **Página de Configurações** (`/settings`, `SettingsPage.tsx`, substitui o
+  placeholder): conta, canais conectados, a **redirect URI** exata para
+  cadastrar no Google Cloud Console (com botão copiar), região padrão das
+  tendências (`localStorage`, ver `preferences.ts` — não justifica tabela) e
+  limpeza do histórico.
+- **Diagnóstico das integrações**: `POST /api/settings/check` faz uma
+  chamada barata de verdade a cada serviço — `videos.list` (1 unidade de
+  cota) para a `YOUTUBE_API_KEY` e `GET /v1/models` (sem custo de tokens)
+  para a `ANTHROPIC_API_KEY` — e devolve, por integração, se a chave é
+  válida, foi recusada, ou se a cota acabou. Rate limit de 5/min. As
+  variáveis já são obrigatórias no boot (`env.ts`), mas "não vazia" não é
+  "válida"; sem esse teste o erro só aparecia na primeira busca.
+  `GET /api/settings` nunca devolve segredo (só a redirect URI, o ambiente e
+  a contagem de canais) e emite avisos de configuração **só em produção**
+  (redirect URI apontando para localhost, ou com origem diferente de
+  `FRONTEND_URL`) — em dev, Vite (:5173) e backend (:3000) têm origens
+  diferentes por design, então avisar lá seria falso positivo.
+- **Testado**: exclusão (uma/todas, 404, isolamento entre usuários,
+  preservação de `Trend`/`Video`), rotas de configurações com `fetch`
+  substituído (chave ok/recusada/cota/rede caindo) e a garantia de que
+  nenhum segredo aparece na resposta; frontend com chips, confirmação,
+  erro de exclusão e a página de Configurações. Validado ao vivo no
+  navegador contra o Postgres local: excluir um chip persiste no banco, e
+  "Testar conexões" com as chaves reais do `.env` confirmou YouTube Data
+  API e Anthropic válidas.
+
+### Importar vídeo por link direto (pós-Fase 17)
+
+- `POST /api/content-projects/:id/media/import` (`{ url }`) faz o servidor
+  baixar um **arquivo de vídeo** de um link direto (.mp4/.mov/.webm… num
+  servidor do próprio usuário, CDN, S3, Dropbox com `?dl=1`) e o coloca no
+  mesmo fluxo do upload: mesmo limite de 500MB, mesmo `MediaUpload` (1:1 com
+  o projeto), **direitos resetados** e ainda obrigatórios antes de `READY`/
+  publicar. O botão fica em "Importar por link", no card Vídeo do projeto.
+- **Não funciona com links do YouTube — de propósito.** `youtube.com`,
+  `youtu.be`, `youtube-nocookie.com` e `googlevideo.com` (o CDN dos streams)
+  são recusados com uma mensagem explicando. O projeto não baixa vídeos do
+  YouTube (ver README e docs/YOUTUBE.md); páginas de player de outras redes
+  também não servem, porque respondem HTML e não um arquivo de vídeo.
+- **Segurança (SSRF)** — `backend/src/media/remoteDownload.ts`. Pedir pro
+  servidor buscar uma URL escolhida pelo usuário é o vetor clássico pra
+  alcançar `localhost`, a rede interna do Render ou o endpoint de metadados
+  da nuvem (169.254.169.254). Travas: só http/https nas portas 80/443, sem
+  usuário/senha na URL; o IP de **cada conexão** é validado no momento de
+  conectar (`lookup` customizado — cobre DNS rebinding), e IP literal
+  (inclusive disfarçado em decimal/hexa/octal ou IPv6 mapeado) é checado à
+  parte, porque não passa pelo DNS; cada redirecionamento (máx. 3) passa pela
+  mesma validação; erros de rede viram uma mensagem genérica (nada de
+  IP/host interno vazando pra tela).
+- **Limites e integridade**: aceita `video/*`, ou tipo binário genérico
+  (`application/octet-stream`, comum em Dropbox/S3) só se a extensão for de
+  vídeo conhecida; barra pelo `Content-Length` e, sem ele, contando os bytes
+  do stream (413); timeout de 30 s ocioso e 20 min no total; sem compressão
+  (`Accept-Encoding: identity`); rate limit de 5/min na rota. O download vai
+  pra um `.part` e o vídeo anterior do projeto só é apagado **depois** que o
+  novo chegou inteiro — importação que falha não destrói o que já existia.
+- **Rastro de origem**: cada importação grava um `AuditLog`
+  (`MEDIA_IMPORTED_FROM_URL`) com a URL de origem **sem a query string**
+  (links assinados carregam token), tamanho e tipo — pra quando a declaração
+  de direitos for questionada. Não exigiu migration.
+- **Limitação conhecida**: o download é síncrono (a requisição fica aberta
+  até terminar) e vai pro disco local, então herda a pendência de storage
+  efêmero no Render (ver "Upload de mídia"). Links de compartilhamento do
+  Google Drive não funcionam (devolvem uma página HTML de confirmação).
+- **Testado**: unidade do downloader contra um servidor HTTP local de verdade
+  (tipos, nome por `Content-Disposition`, 404, vazio, limite com/sem
+  `Content-Length`, redirecionamento, redirecionamento pro YouTube, laço) e
+  64 casos das travas (faixas de IP, disfarces, YouTube e domínios
+  parecidos que **não** podem ser bloqueados); rotas com o download
+  substituído (grava, troca o vídeo, reseta direitos, auditoria sem query,
+  limpeza do `.part`, falha preserva o vídeo anterior). Validado ao vivo
+  contra DNS/TLS reais: `example.com` recusado por ser HTML, e YouTube,
+  `localhost` e `169.254.169.254` barrados — nada gravado em disco.
+
 ## Frontend
 
 - **Vite + React + TypeScript**, Tailwind CSS v4 via `@tailwindcss/vite`

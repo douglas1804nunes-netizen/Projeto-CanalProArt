@@ -91,6 +91,18 @@ devDependency e não sobrevive ao `npm prune --omit=dev`; rodar migration no
 boot do processo web é arriscado sem lock). Aplique manualmente (Supabase MCP
 ou `prisma migrate deploy` local apontando pro `DATABASE_URL` de produção).
 
+## Depois do deploy: conferir a configuração
+
+Entre no app → **Configurações** (`/settings`):
+
+- **Testar conexões** confirma, com uma chamada real, se `YOUTUBE_API_KEY` e
+  `ANTHROPIC_API_KEY` são válidas (gasta 1 unidade de cota do YouTube).
+- **URI de redirecionamento** mostra a URL exata que precisa estar cadastrada
+  no Google Cloud Console (passo 1 abaixo) — use o botão "Copiar".
+- Se aparecer um aviso amarelo (redirect URI apontando para localhost ou para
+  outra origem), corrija `YOUTUBE_REDIRECT_URI`/`FRONTEND_URL` no painel do
+  Render.
+
 ## Depois do deploy: conectar o YouTube de verdade
 
 1. No Google Cloud Console → OAuth Client → **Authorized redirect URIs**,

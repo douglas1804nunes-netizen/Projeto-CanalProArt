@@ -101,7 +101,10 @@ plataforma independente do status de direitos (ORIGINAL/AUTHORIZED/etc.).
 
 ## 8. O que este projeto nunca faz
 
-- Não baixa vídeos de terceiros.
+- Não baixa vídeos do YouTube (nem de terceiros sem autorização). A
+  importação por link (ver docs/ARCHITECTURE.md) só aceita link direto de
+  arquivo, recusa `youtube.com`/`youtu.be`/`googlevideo.com` e exige a mesma
+  declaração de direitos do upload.
 - Não contorna DRM, autenticação ou restrições de conteúdo.
 - Não tenta burlar a cota (ex.: rotacionar múltiplas API keys para escapar do
   limite).

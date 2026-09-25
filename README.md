@@ -10,7 +10,9 @@ através da API oficial do YouTube.
 > públicas. Toda publicação exige um vídeo enviado pelo próprio usuário com
 > direitos declarados (ORIGINAL, AUTHORIZED, LICENSED ou PUBLIC_DOMAIN).
 
-**Status atual: Fase 17 — Histórico de publicações.**
+**Status atual: Fase 17 — Histórico de publicações**, mais página de
+Configurações (diagnóstico das chaves), exclusão de pesquisas e link "Abrir no
+YouTube" nas tendências.
 Veja o roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack
@@ -150,4 +152,6 @@ npm test
 - Nenhum mecanismo para burlar DRM, autenticação, limitações ou quotas do
   YouTube é implementado.
 - Conteúdo de terceiros é usado apenas como referência analítica, nunca
-  baixado/republicado automaticamente.
+  baixado/republicado automaticamente. A importação de vídeo por link aceita
+  só link direto de arquivo (seu ou autorizado), recusa links do YouTube e
+  exige declarar os direitos antes de publicar.
