@@ -732,6 +732,55 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
   `empty` quando a resposta é uma lista) — ver `src/pages/Dashboard.tsx` para
   o padrão de referência.
 
+### Design system "Neon Aurora"
+
+Visual futurista, colorido e animado, todo em `src/index.css` + componentes
+pequenos em `src/components/` — sem biblioteca de UI nem CDN.
+
+- **Tokens, não cores fixas.** As telas usam só tokens (`text-fg`,
+  `text-muted`, `bg-surface`, `border-line`, `text-ok/warn/danger/info`,
+  `text-neon-cyan`…) e utilitários (`glass`, `glass-hover`, `btn-primary`,
+  `btn-ghost`, `page-title`, `text-gradient`, `gradient-ring`, `stagger`,
+  `page-enter`). Nunca `slate-*`/`white`/`red-*` direto: quebraria um dos
+  temas. Os tokens vivem em variáveis CSS (`--bg`, `--fg`, `--c1..c5`…) e o
+  `@theme inline` os expõe ao Tailwind.
+- **Dois temas sobre os mesmos tokens**: **Neon** (escuro, padrão) e
+  **Aurora** (claro e colorido), alternados pelo `ThemeToggle` (barra
+  lateral, cabeçalho mobile e login). A escolha fica em
+  `localStorage["canalproart:theme"]` e é aplicada em `<html data-theme>` por
+  `public/theme-init.js` **antes** do React (sem piscar o tema errado). É um
+  arquivo externo — e não um `<script>` inline — porque a CSP de produção só
+  permite scripts da própria origem (`script-src 'self'`).
+- **Fundo animado**: aurora em gradiente (`body::before`), grade em
+  movimento (`body::after`) e três esferas de luz desfocadas
+  (`BackgroundFX`), tudo `position: fixed` e atrás do conteúdo, sem capturar
+  cliques. Cartões são "vidro" (`glass`: gradiente translúcido +
+  `backdrop-filter`), com elevação e brilho ao passar o mouse.
+- **Movimento**: entrada de página (`page-enter`, refeita a cada rota pelo
+  `key={location.pathname}` do `AppLayout`), listas em cascata (`stagger`),
+  botão primário com brilho varrendo, selo "Em alta" pulsando, logo e cartões
+  flutuando. `prefers-reduced-motion: reduce` desliga tudo (os elementos
+  aparecem direto no estado final).
+- **Componentes**: `Icon` (SVG inline, traço), `Logo`/`Brand` (mesma marca
+  dos ícones do PWA), `ClassificationBadge` (selo único de Em alta/Subindo/
+  Estável/Caindo, antes copiado em 4 telas), `chartTheme.ts` (cores de
+  gráfico via variáveis — os gráficos do Recharts acompanham o tema) e
+  `layout/AuthShell` (login/cadastro com vitrine do produto).
+- **Fonte**: Space Grotesk, hospedada pelo próprio app
+  (`@fontsource-variable/space-grotesk`) — nada de Google Fonts, então
+  funciona com a CSP (`font-src 'self'`) e offline no PWA; só o subconjunto
+  usado é baixado.
+- **PWA**: ícones regenerados com a nova marca
+  (`node scripts/generate-pwa-icons.mjs`), `theme_color`/`background_color`
+  do manifest alinhados ao fundo e `CACHE_VERSION` do service worker subiu
+  para `v2` (as instalações atuais descartam o cache com os ícones antigos).
+- **Acessibilidade**: ícones e enfeites são `aria-hidden` (o nome acessível
+  dos links/botões continua sendo o texto), foco visível com brilho ciano e
+  cores de estado com contraste próprio em cada tema.
+- **Validado** no navegador com o app compilado em `NODE_ENV=production`
+  (mesma CSP do Render): fonte local, `theme-init.js`, estilos e bundle
+  carregam sem violação; os dois temas foram conferidos em desktop e celular.
+
 ## Banco de dados
 
 - PostgreSQL 16 via `docker-compose.yml` (uso local/dev). Em produção, Postgres

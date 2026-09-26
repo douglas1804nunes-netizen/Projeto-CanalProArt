@@ -18,7 +18,7 @@ Veja o roadmap completo em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack
 
-- **Frontend:** React + Vite + TypeScript + Tailwind CSS v4 + React Router + Recharts
+- **Frontend:** React + Vite + TypeScript + Tailwind CSS v4 + React Router + Recharts, com design system próprio "Neon Aurora" (tema escuro/claro, ver [ARCHITECTURE.md](docs/ARCHITECTURE.md))
 - **Backend:** Node.js + TypeScript + Fastify
 - **Banco:** PostgreSQL + Prisma
 - **IA:** Anthropic (Claude), atrás de uma interface `AIProvider` desacoplada
