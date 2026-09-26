@@ -18,7 +18,7 @@ export function Cover({ url, className = "" }: CoverProps) {
     return (
       <div
         aria-hidden="true"
-        className={`flex items-center justify-center bg-slate-100 text-slate-300 ${className}`}
+        className={`flex items-center justify-center bg-surface-2 text-faint ${className}`}
       >
         ▶
       </div>
@@ -31,7 +31,7 @@ export function Cover({ url, className = "" }: CoverProps) {
       alt=""
       loading="lazy"
       onError={() => setFailedUrl(url)}
-      className={`bg-slate-100 ${className}`}
+      className={`bg-surface-2 ${className}`}
     />
   );
 }

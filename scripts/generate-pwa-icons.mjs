@@ -14,9 +14,26 @@ const outDir = path.join(
   "icons",
 );
 
-const BG = [15, 23, 42]; // slate-900
+// Fundo em gradiente diagonal (mesma marca do Logo do app): violeta -> magenta -> ciano.
+const STOPS = [
+  [0, [109, 93, 252]],
+  [0.55, [192, 92, 240]],
+  [1, [34, 211, 238]],
+];
+function background(x, y) {
+  const t = (x + y) / 2;
+  for (let i = 1; i < STOPS.length; i++) {
+    const [t1, c1] = STOPS[i];
+    const [t0, c0] = STOPS[i - 1];
+    if (t <= t1) {
+      const k = (t - t0) / (t1 - t0);
+      return c0.map((v, n) => Math.round(v + (c1[n] - v) * k));
+    }
+  }
+  return STOPS[STOPS.length - 1][1];
+}
 const FG = [255, 255, 255];
-const ACCENT = [239, 68, 68]; // red-500
+const ACCENT = [251, 191, 36]; // âmbar
 const SUPERSAMPLE = 4;
 
 // Coordenadas normalizadas (0..1). `scale` encolhe o desenho em direção ao
@@ -47,7 +64,7 @@ function shade(x, y, { rounded, scale }) {
 
   // Ponto de destaque ("trend") no canto superior direito.
   if ((u - 0.76) ** 2 + (v - 0.26) ** 2 < 0.07 ** 2) return ACCENT;
-  return BG;
+  return background(x, y);
 }
 
 function render(size, opts) {

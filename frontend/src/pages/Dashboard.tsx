@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-
-type TrendClassification = "RISING" | "HOT" | "STABLE" | "DECLINING";
+import { axisLineStroke, axisTick, gridStroke, tooltipProps } from "../components/chartTheme";
+import { ClassificationBadge, type TrendClassification } from "../components/ClassificationBadge";
+import { Icon, type IconName } from "../components/Icon";
 
 type DashboardCounts = {
   videosAnalyzed: number;
@@ -41,26 +42,13 @@ type DashboardState =
   | { status: "success"; data: DashboardData }
   | { status: "error"; message: string };
 
-const CLASSIFICATION_LABELS: Record<TrendClassification, string> = {
-  HOT: "🔥 Em alta",
-  RISING: "📈 Subindo",
-  STABLE: "➡️ Estável",
-  DECLINING: "📉 Caindo",
-};
-
-const CLASSIFICATION_STYLES: Record<TrendClassification, string> = {
-  HOT: "bg-red-100 text-red-700",
-  RISING: "bg-emerald-100 text-emerald-700",
-  STABLE: "bg-slate-100 text-slate-600",
-  DECLINING: "bg-amber-100 text-amber-700",
-};
-
-const CARDS: Array<{ key: keyof DashboardCounts; label: string }> = [
-  { key: "videosAnalyzed", label: "Vídeos analisados" },
-  { key: "trends", label: "Tendências" },
-  { key: "opportunities", label: "Oportunidades" },
-  { key: "contentProjects", label: "Conteúdos" },
-  { key: "publishedVideos", label: "Publicações" },
+// Cada indicador tem a sua cor: ela pinta a faixa do topo, o ícone e o brilho.
+const CARDS: Array<{ key: keyof DashboardCounts; label: string; icon: IconName; color: string }> = [
+  { key: "videosAnalyzed", label: "Vídeos analisados", icon: "play", color: "var(--c1)" },
+  { key: "trends", label: "Tendências", icon: "trending", color: "var(--c2)" },
+  { key: "opportunities", label: "Oportunidades", icon: "bulb", color: "var(--c4)" },
+  { key: "contentProjects", label: "Conteúdos", icon: "file", color: "var(--c3)" },
+  { key: "publishedVideos", label: "Publicações", icon: "rocket", color: "var(--c5)" },
 ];
 
 export function Dashboard() {
@@ -94,56 +82,98 @@ export function Dashboard() {
 
   return (
     <div className="max-w-5xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="page-title text-2xl font-semibold tracking-tight">Dashboard</h1>
+      <p className="mt-1 text-sm text-muted">
         Visão geral das tendências e oportunidades identificadas até agora.
       </p>
 
-      {state.status === "loading" && <p className="mt-6 text-sm text-slate-500">Carregando…</p>}
+      {state.status === "loading" && <p className="mt-6 text-sm text-muted">Carregando…</p>}
 
-      {state.status === "error" && <p className="mt-6 text-sm text-red-600">{state.message}</p>}
+      {state.status === "error" && <p className="mt-6 text-sm text-danger">{state.message}</p>}
 
       {state.status === "success" && (
         <>
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {CARDS.map((card) => (
+          <div className="stagger mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {CARDS.map((card, index) => (
               <div
                 key={card.key}
-                className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+                style={{ "--card-c": card.color } as CSSProperties}
+                className={`glass glass-hover group relative overflow-hidden rounded-2xl p-4 ${
+                  index === CARDS.length - 1 ? "col-span-2 sm:col-span-1" : ""
+                }`}
               >
-                <p className="text-xs font-medium text-slate-500">{card.label}</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-0 top-0 h-1 bg-[var(--card-c)] shadow-[0_0_20px_var(--card-c)]"
+                />
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-3 -bottom-4 text-[var(--card-c)] opacity-[0.13] transition-all duration-500 group-hover:scale-125 group-hover:opacity-30"
+                >
+                  <Icon name={card.icon} className="h-24 w-24" />
+                </span>
+                <div className="flex items-center gap-2.5">
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[color-mix(in_oklab,var(--card-c)_18%,transparent)] text-[var(--card-c)]"
+                  >
+                    <Icon name={card.icon} className="h-[18px] w-[18px]" />
+                  </span>
+                  <p className="text-xs font-medium text-muted">{card.label}</p>
+                </div>
+                <p className="relative mt-4 text-4xl font-bold tracking-tight text-fg">
                   {state.data.counts[card.key]}
                 </p>
               </div>
             ))}
           </div>
 
-          <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-medium text-slate-700">Top tendências por score</h2>
+          <div className="glass mt-8 rounded-2xl p-5">
+            <h2 className="text-sm font-semibold text-fg">Top tendências por score</h2>
             {state.data.topTrends.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">
+              <p className="mt-3 text-sm text-muted">
                 Nenhuma tendência calculada ainda — faça uma busca em Tendências.
               </p>
             ) : (
               <>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-faint">
                   Clique numa barra para ver a análise completa.
                 </p>
                 <div className="mt-4 h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={state.data.topTrends} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" domain={[0, 100]} />
-                      <YAxis type="category" dataKey="topic" width={120} tick={{ fontSize: 12 }} />
+                    <BarChart data={state.data.topTrends} layout="vertical" margin={{ right: 16 }}>
+                      <defs>
+                        <linearGradient id="dashboard-bar" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" style={{ stopColor: "var(--grad-bar-a)" }} />
+                          <stop offset="100%" style={{ stopColor: "var(--grad-bar-b)" }} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke={gridStroke} strokeDasharray="3 3" horizontal={false} />
+                      <XAxis
+                        type="number"
+                        domain={[0, 100]}
+                        tick={axisTick}
+                        stroke={axisLineStroke}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="topic"
+                        width={120}
+                        tick={{ ...axisTick, fill: "var(--fg-soft)" }}
+                        stroke={axisLineStroke}
+                        tickLine={false}
+                      />
                       <Tooltip
+                        {...tooltipProps}
                         formatter={(value: number) => [value, "Score"]}
                         labelFormatter={(label: string) => label}
                       />
                       <Bar
                         dataKey="trendScore"
-                        fill="#0f172a"
-                        radius={[0, 4, 4, 0]}
+                        fill="url(#dashboard-bar)"
+                        radius={[0, 10, 10, 0]}
+                        background={{ fill: "var(--surface)", radius: 10 }}
+                        animationDuration={1100}
                         style={{ cursor: "pointer" }}
                         onClick={(barData: { payload?: TopTrend }) => {
                           if (barData.payload) navigate(`/trends/${barData.payload.id}`);
@@ -156,32 +186,28 @@ export function Dashboard() {
             )}
           </div>
 
-          <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-medium text-slate-700">Top oportunidades</h2>
+          <div className="glass mt-8 rounded-2xl p-5">
+            <h2 className="text-sm font-semibold text-fg">Top oportunidades</h2>
             {state.data.topOpportunities.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">
+              <p className="mt-3 text-sm text-muted">
                 Nenhuma oportunidade nova no momento — tendências HOT/RISING geram oportunidades
                 automaticamente.
               </p>
             ) : (
-              <ul className="mt-3 divide-y divide-slate-100">
+              <ul className="mt-3 divide-y divide-line">
                 {state.data.topOpportunities.map((opportunity) => (
                   <li key={opportunity.id}>
                     <Link
                       to={`/trends/${opportunity.trendId}`}
-                      className="flex items-center justify-between gap-3 py-3 hover:bg-slate-50"
+                      className="-mx-2 flex items-center justify-between gap-3 rounded-xl px-2 py-3 transition-colors hover:bg-surface-2"
                     >
                       <div>
-                        <p className="text-sm font-medium text-slate-900">{opportunity.topic}</p>
-                        <p className="text-xs text-slate-500">{opportunity.regionCode}</p>
+                        <p className="text-sm font-medium text-fg">{opportunity.topic}</p>
+                        <p className="text-xs text-muted">{opportunity.regionCode}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${CLASSIFICATION_STYLES[opportunity.classification]}`}
-                        >
-                          {CLASSIFICATION_LABELS[opportunity.classification]}
-                        </span>
-                        <span className="text-sm font-semibold text-slate-700">
+                        <ClassificationBadge classification={opportunity.classification} />
+                        <span className="text-sm font-semibold text-fg-soft">
                           {opportunity.score}
                         </span>
                       </div>

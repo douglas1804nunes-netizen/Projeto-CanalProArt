@@ -293,27 +293,29 @@ export function ContentProjectDetailPage() {
 
   return (
     <div className="max-w-4xl">
-      <Link to="/content" className="text-sm text-slate-500 hover:text-slate-700">
+      <Link to="/content" className="text-sm text-muted hover:text-fg">
         ← Voltar aos conteúdos
       </Link>
 
-      {state.status === "loading" && <p className="mt-6 text-sm text-slate-500">Carregando…</p>}
+      {state.status === "loading" && <p className="mt-6 text-sm text-muted">Carregando…</p>}
       {state.status === "not-found" && (
-        <p className="mt-6 text-sm text-slate-500">Projeto não encontrado.</p>
+        <p className="mt-6 text-sm text-muted">Projeto não encontrado.</p>
       )}
-      {state.status === "error" && <p className="mt-6 text-sm text-red-600">{state.message}</p>}
+      {state.status === "error" && <p className="mt-6 text-sm text-danger">{state.message}</p>}
 
       {state.status === "success" && (
         <>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{state.project.title}</h1>
+            <h1 className="page-title text-2xl font-semibold tracking-tight">
+              {state.project.title}
+            </h1>
             <select
               value={state.project.status}
               onChange={(event) =>
                 void handleStatusChange(event.target.value as ContentProjectStatus)
               }
               disabled={busy === "status"}
-              className="rounded-full border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-700"
+              className="rounded-full border border-line-strong px-2 py-0.5 text-xs font-medium text-fg-soft"
             >
               {STATUS_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -323,7 +325,7 @@ export function ContentProjectDetailPage() {
             </select>
             <Link
               to={`/content/${id}/preview`}
-              className="text-xs text-slate-500 underline hover:text-slate-700"
+              className="text-xs text-muted underline hover:text-fg"
             >
               Ver prévia
             </Link>
@@ -331,24 +333,24 @@ export function ContentProjectDetailPage() {
               type="button"
               onClick={() => void handleDeleteProject(state.project.title)}
               disabled={busy === "project-delete"}
-              className="ml-auto rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              className="ml-auto rounded-lg border border-line px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-50"
             >
               {busy === "project-delete" ? "Excluindo…" : "Excluir conteúdo"}
             </button>
           </div>
 
-          {actionError && <p className="mt-3 text-sm text-red-600">{actionError}</p>}
+          {actionError && <p className="mt-3 text-sm text-danger">{actionError}</p>}
 
-          <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-medium text-slate-700">Vídeo</h2>
+          <div className="mt-8 glass rounded-2xl p-5">
+            <h2 className="text-sm font-medium text-fg-soft">Vídeo</h2>
             {state.project.mediaUpload ? (
               <div className="mt-3">
                 <video
                   controls
                   src={`/api/content-projects/${id}/media/file`}
-                  className="w-full rounded-md bg-black"
+                  className="w-full rounded-lg bg-black"
                 />
-                <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                <div className="mt-2 flex items-center justify-between text-xs text-muted">
                   <span>
                     {state.project.mediaUpload.fileName} ·{" "}
                     {formatFileSize(state.project.mediaUpload.sizeBytes)}
@@ -357,7 +359,7 @@ export function ContentProjectDetailPage() {
                     type="button"
                     onClick={() => void handleRemoveMedia()}
                     disabled={busy === "media-remove"}
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 btn-ghost"
                   >
                     {busy === "media-remove" ? "Removendo…" : "Remover"}
                   </button>
@@ -365,11 +367,11 @@ export function ContentProjectDetailPage() {
 
                 <div
                   key={`${state.project.mediaUpload.fileName}-${state.project.mediaUpload.sizeBytes}`}
-                  className="mt-4 border-t border-slate-100 pt-4"
+                  className="mt-4 border-t border-line pt-4"
                 >
-                  <h3 className="text-xs font-medium text-slate-700">Direitos do vídeo</h3>
+                  <h3 className="text-xs font-medium text-fg-soft">Direitos do vídeo</h3>
                   {state.project.mediaUpload.rightsStatus && (
-                    <p className="mt-1 text-xs text-emerald-700">
+                    <p className="mt-1 text-xs text-ok">
                       Declarado: {RIGHTS_STATUS_LABELS[state.project.mediaUpload.rightsStatus]}
                       {state.project.mediaUpload.containsSyntheticMedia &&
                         " · contém mídia sintética"}
@@ -380,7 +382,7 @@ export function ContentProjectDetailPage() {
                       ref={rightsStatusRef}
                       aria-label="Status de direitos"
                       defaultValue={state.project.mediaUpload.rightsStatus ?? ""}
-                      className="rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                      className="rounded-lg border border-line-strong px-2 py-1.5 text-xs"
                     >
                       <option value="" disabled>
                         Selecione o status de direitos
@@ -391,7 +393,7 @@ export function ContentProjectDetailPage() {
                         </option>
                       ))}
                     </select>
-                    <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <label className="flex items-center gap-1.5 text-xs text-fg-soft">
                       <input
                         ref={syntheticMediaRef}
                         type="checkbox"
@@ -403,7 +405,7 @@ export function ContentProjectDetailPage() {
                       type="button"
                       onClick={() => void handleSaveRights()}
                       disabled={busy === "rights"}
-                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 btn-ghost"
                     >
                       {busy === "rights" ? "Salvando…" : "Salvar declaração"}
                     </button>
@@ -411,7 +413,7 @@ export function ContentProjectDetailPage() {
                 </div>
               </div>
             ) : (
-              <p className="mt-3 text-sm text-slate-500">Nenhum vídeo enviado ainda.</p>
+              <p className="mt-3 text-sm text-muted">Nenhum vídeo enviado ainda.</p>
             )}
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <input ref={fileInputRef} type="file" accept="video/*" className="text-sm" />
@@ -419,7 +421,7 @@ export function ContentProjectDetailPage() {
                 type="button"
                 onClick={() => void handleUploadMedia()}
                 disabled={busy === "media-upload"}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 btn-ghost"
               >
                 {busy === "media-upload"
                   ? "Enviando…"
@@ -431,10 +433,10 @@ export function ContentProjectDetailPage() {
 
             <form
               onSubmit={(event) => void handleImportMedia(event)}
-              className="mt-4 border-t border-slate-100 pt-4"
+              className="mt-4 border-t border-line pt-4"
             >
-              <h3 className="text-xs font-medium text-slate-700">Importar por link</h3>
-              <p className="mt-1 text-xs text-slate-500">
+              <h3 className="text-xs font-medium text-fg-soft">Importar por link</h3>
+              <p className="mt-1 text-xs text-muted">
                 Cole o link direto de um arquivo de vídeo (.mp4, .mov, .webm…) que seja seu ou
                 autorizado — depois é preciso declarar os direitos. Links do YouTube não funcionam:
                 o CanalProArt não baixa vídeos do YouTube. No Dropbox, use <code>?dl=1</code> no fim
@@ -447,18 +449,18 @@ export function ContentProjectDetailPage() {
                   onChange={(event) => setImportUrl(event.target.value)}
                   aria-label="Link do vídeo"
                   placeholder="https://exemplo.com/meu-video.mp4"
-                  className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-500"
+                  className="min-w-0 flex-1 rounded-lg border border-line-strong px-3 py-1.5 text-sm outline-none focus:border-neon-cyan"
                 />
                 <button
                   type="submit"
                   disabled={busy === "media-import" || importUrl.trim() === ""}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 btn-ghost"
                 >
                   {busy === "media-import" ? "Baixando…" : "Importar"}
                 </button>
               </div>
               {busy === "media-import" && (
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-muted">
                   Baixando o vídeo no servidor — arquivos grandes podem levar alguns minutos.
                   Mantenha esta página aberta.
                 </p>
@@ -466,41 +468,41 @@ export function ContentProjectDetailPage() {
             </form>
           </div>
 
-          <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mt-8 glass rounded-2xl p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium text-slate-700">Roteiro</h2>
+              <h2 className="text-sm font-medium text-fg-soft">Roteiro</h2>
               <button
                 type="button"
                 onClick={() => void handleGenerateScript()}
                 disabled={busy === "script"}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 btn-ghost"
               >
                 {busy === "script" ? "Gerando…" : "Gerar roteiro"}
               </button>
             </div>
             {state.project.scripts.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">Nenhum roteiro gerado ainda.</p>
+              <p className="mt-3 text-sm text-muted">Nenhum roteiro gerado ainda.</p>
             ) : (
-              <div className="mt-3 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+              <div className="mt-3 whitespace-pre-wrap rounded-lg bg-surface p-3 text-sm text-fg-soft">
                 {state.project.scripts[0]?.content}
               </div>
             )}
           </div>
 
-          <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mt-8 glass rounded-2xl p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium text-slate-700">Títulos</h2>
+              <h2 className="text-sm font-medium text-fg-soft">Títulos</h2>
               <button
                 type="button"
                 onClick={() => void handleGenerateTitles()}
                 disabled={busy === "titles"}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 btn-ghost"
               >
                 {busy === "titles" ? "Gerando…" : "Gerar títulos"}
               </button>
             </div>
             {state.project.generatedTitles.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">Nenhum título gerado ainda.</p>
+              <p className="mt-3 text-sm text-muted">Nenhum título gerado ainda.</p>
             ) : (
               <ul className="mt-3 flex flex-col gap-2">
                 {state.project.generatedTitles.map((title) => (
@@ -509,10 +511,10 @@ export function ContentProjectDetailPage() {
                       type="button"
                       onClick={() => void handleSelectTitle(title.id)}
                       disabled={busy === `title-${title.id}`}
-                      className={`w-full rounded-md border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50 ${
+                      className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50 ${
                         title.selected
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          ? "border-neon-cyan bg-neon-cyan/10 text-fg shadow-[0_0_28px_-10px_var(--c1)]"
+                          : "glass text-fg-soft hover:border-neon-violet/60 hover:text-fg"
                       }`}
                     >
                       {title.title}
@@ -523,22 +525,22 @@ export function ContentProjectDetailPage() {
             )}
           </div>
 
-          <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mt-8 glass rounded-2xl p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium text-slate-700">Descrição</h2>
+              <h2 className="text-sm font-medium text-fg-soft">Descrição</h2>
               <button
                 type="button"
                 onClick={() => void handleGenerateDescription()}
                 disabled={busy === "description" || state.project.scripts.length === 0}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 btn-ghost"
               >
                 {busy === "description" ? "Gerando…" : "Gerar descrição"}
               </button>
             </div>
             {state.project.scripts.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">Gere um roteiro antes da descrição.</p>
+              <p className="mt-3 text-sm text-muted">Gere um roteiro antes da descrição.</p>
             ) : state.project.generatedDescriptions.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">Nenhuma descrição gerada ainda.</p>
+              <p className="mt-3 text-sm text-muted">Nenhuma descrição gerada ainda.</p>
             ) : (
               <ul className="mt-3 flex flex-col gap-2">
                 {state.project.generatedDescriptions.map((description) => (
@@ -547,10 +549,10 @@ export function ContentProjectDetailPage() {
                       type="button"
                       onClick={() => void handleSelectDescription(description.id)}
                       disabled={busy === `description-${description.id}`}
-                      className={`w-full whitespace-pre-wrap rounded-md border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50 ${
+                      className={`w-full whitespace-pre-wrap rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50 ${
                         description.selected
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          ? "border-neon-cyan bg-neon-cyan/10 text-fg shadow-[0_0_28px_-10px_var(--c1)]"
+                          : "glass text-fg-soft hover:border-neon-violet/60 hover:text-fg"
                       }`}
                     >
                       {description.description}

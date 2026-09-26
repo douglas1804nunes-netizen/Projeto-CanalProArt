@@ -26,9 +26,9 @@ const STATUS_LABELS: Record<PublishedVideoStatus, string> = {
 };
 
 const STATUS_STYLES: Record<PublishedVideoStatus, string> = {
-  PENDING: "bg-amber-100 text-amber-700",
-  PUBLISHED: "bg-emerald-100 text-emerald-700",
-  FAILED: "bg-red-100 text-red-700",
+  PENDING: "bg-warn/15 text-warn",
+  PUBLISHED: "bg-ok/15 text-ok",
+  FAILED: "bg-danger/15 text-danger",
 };
 
 export function PublishedVideosPage() {
@@ -61,31 +61,31 @@ export function PublishedVideosPage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Vídeos</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="page-title text-2xl font-semibold tracking-tight">Vídeos</h1>
+      <p className="mt-1 text-sm text-muted">
         Histórico de tentativas de publicação — sucessos e falhas.
       </p>
 
       <div className="mt-6">
-        {state.status === "loading" && <p className="text-sm text-slate-500">Carregando…</p>}
-        {state.status === "error" && <p className="text-sm text-red-600">{state.message}</p>}
+        {state.status === "loading" && <p className="text-sm text-muted">Carregando…</p>}
+        {state.status === "error" && <p className="text-sm text-danger">{state.message}</p>}
 
         {state.status === "success" && state.videos.length === 0 && (
-          <p className="text-sm text-slate-500">Nenhuma publicação ainda.</p>
+          <p className="text-sm text-muted">Nenhuma publicação ainda.</p>
         )}
 
         {state.status === "success" && state.videos.length > 0 && (
-          <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white shadow-sm">
+          <ul className="divide-y divide-line glass rounded-2xl">
             {state.videos.map((video) => (
               <li key={video.id} className="flex items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <Link
                     to={`/content/${video.contentProjectId}`}
-                    className="text-sm font-medium text-slate-900 hover:underline"
+                    className="text-sm font-medium text-fg hover:underline"
                   >
                     {video.contentProjectTitle}
                   </Link>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted">
                     {video.channelTitle} · {new Date(video.createdAt).toLocaleString("pt-BR")}
                   </p>
                 </div>
@@ -95,7 +95,7 @@ export function PublishedVideosPage() {
                       href={`https://youtube.com/watch?v=${video.youtubeVideoId}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs text-slate-500 underline hover:text-slate-700"
+                      className="text-xs text-muted underline hover:text-fg"
                     >
                       Ver no YouTube
                     </a>

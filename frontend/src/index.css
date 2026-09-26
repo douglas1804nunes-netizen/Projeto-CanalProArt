@@ -1,1 +1,594 @@
 @import "tailwindcss";
+@import "@fontsource-variable/space-grotesk";
+
+/* ==========================================================================
+   Design system "Neon Aurora"
+   Dois temas sobre os mesmos tokens: "dark" (Neon, padrão) e "light" (Aurora).
+   Os componentes usam só os tokens (text-fg, bg-surface, border-line, glass,
+   btn-primary…) — nunca cores fixas — então trocar o tema não exige tocar
+   nas telas. O tema é aplicado em <html data-theme> por /theme-init.js
+   (antes do React, sem piscar) e alternado pelo ThemeToggle.
+   ========================================================================== */
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #060818;
+  --fg: #f1f4ff;
+  --fg-soft: #cdd5ff;
+  --muted: #98a4d6;
+  --faint: #6c79b0;
+
+  --surface: rgb(255 255 255 / 0.055);
+  --surface-2: rgb(255 255 255 / 0.1);
+  --surface-solid: #0d1233;
+  --line: rgb(255 255 255 / 0.11);
+  --line-strong: rgb(255 255 255 / 0.2);
+
+  /* Paleta de acentos */
+  --c1: #22d3ee; /* ciano */
+  --c2: #8b5cf6; /* violeta */
+  --c3: #ec4899; /* rosa */
+  --c4: #fbbf24; /* âmbar */
+  --c5: #34d399; /* menta */
+
+  /* Estados (texto legível sobre o fundo do tema) */
+  --ok: #6ee7b7;
+  --warn: #fcd34d;
+  --danger: #fda4af;
+  --info: #7dd3fc;
+
+  --glass-bg: linear-gradient(145deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.035));
+  --shadow-card: 0 12px 40px -20px rgb(0 0 0 / 0.85), inset 0 1px 0 rgb(255 255 255 / 0.08);
+
+  --grad-primary: linear-gradient(115deg, #6d5dfc 0%, #b25cf5 38%, #ff5fa2 72%, #ffb454 100%);
+  --grad-title: linear-gradient(90deg, #ffffff 0%, #b8f4ff 38%, #d9bcff 68%, #ffbfdf 100%);
+  --grad-text: linear-gradient(90deg, #22d3ee 0%, #a78bfa 38%, #f472b6 70%, #fbbf24 100%);
+  --grad-bar-a: #22d3ee;
+  --grad-bar-b: #8b5cf6;
+
+  --aurora:
+    radial-gradient(58rem 40rem at 8% -8%, rgb(139 92 246 / 0.38), transparent 62%),
+    radial-gradient(50rem 36rem at 96% 2%, rgb(34 211 238 / 0.3), transparent 62%),
+    radial-gradient(48rem 34rem at 55% 118%, rgb(236 72 153 / 0.28), transparent 62%);
+  --grid-line: rgb(255 255 255 / 0.045);
+  --orb-opacity: 0.5;
+  --btn-text: #ffffff;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #ebe4ff;
+  --fg: #1a1645;
+  --fg-soft: #38336e;
+  --muted: #5f5a94;
+  --faint: #8a86b6;
+
+  --surface: rgb(255 255 255 / 0.6);
+  --surface-2: rgb(255 255 255 / 0.9);
+  --surface-solid: #ffffff;
+  --line: rgb(96 72 210 / 0.16);
+  --line-strong: rgb(96 72 210 / 0.3);
+
+  --c1: #0ea5c6;
+  --c2: #7c3aed;
+  --c3: #e11d74;
+  --c4: #f59e0b;
+  --c5: #10b981;
+
+  --ok: #047857;
+  --warn: #b45309;
+  --danger: #be123c;
+  --info: #0369a1;
+
+  --glass-bg: linear-gradient(145deg, rgb(255 255 255 / 0.78), rgb(255 255 255 / 0.48));
+  --shadow-card: 0 14px 34px -18px rgb(76 29 149 / 0.4), inset 0 1px 0 rgb(255 255 255 / 0.9);
+
+  --grad-primary: linear-gradient(115deg, #6d5dfc 0%, #b25cf5 38%, #ff5fa2 72%, #ffa63d 100%);
+  --grad-title: linear-gradient(90deg, #2a1f7a 0%, #6d3cf0 45%, #d6206f 100%);
+  --grad-text: linear-gradient(90deg, #0ea5c6 0%, #7c3aed 40%, #e11d74 75%, #f59e0b 100%);
+  --grad-bar-a: #06b6d4;
+  --grad-bar-b: #7c3aed;
+
+  --aurora:
+    radial-gradient(58rem 40rem at 6% -8%, rgb(139 92 246 / 0.55), transparent 62%),
+    radial-gradient(50rem 36rem at 98% 0%, rgb(34 211 238 / 0.5), transparent 62%),
+    radial-gradient(48rem 34rem at 60% 118%, rgb(244 114 182 / 0.6), transparent 62%),
+    radial-gradient(34rem 26rem at 0% 90%, rgb(251 191 36 / 0.4), transparent 62%);
+  --grid-line: rgb(96 72 210 / 0.07);
+  --orb-opacity: 0.5;
+}
+
+@theme inline {
+  --font-sans: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-fg-soft: var(--fg-soft);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-solid: var(--surface-solid);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-neon-cyan: var(--c1);
+  --color-neon-violet: var(--c2);
+  --color-neon-pink: var(--c3);
+  --color-neon-amber: var(--c4);
+  --color-neon-mint: var(--c5);
+
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+}
+
+/* ---------------------------------------------------------------- base --- */
+
+@layer base {
+  html {
+    background-color: var(--bg);
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100vh;
+    color: var(--fg);
+    font-feature-settings: "ss01", "tnum";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    isolation: isolate;
+  }
+
+  *,
+  ::before,
+  ::after {
+    border-color: var(--line);
+  }
+
+  ::selection {
+    background: rgb(139 92 246 / 0.5);
+    color: #fff;
+  }
+
+  input,
+  select,
+  textarea {
+    background-color: var(--surface);
+    color: var(--fg);
+    backdrop-filter: blur(8px);
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s,
+      background-color 0.2s;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--faint);
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    box-shadow:
+      0 0 0 3px color-mix(in oklab, var(--c1) 24%, transparent),
+      0 0 26px -6px color-mix(in oklab, var(--c1) 55%, transparent);
+  }
+  select option {
+    background: var(--surface-solid);
+    color: var(--fg);
+  }
+  input[type="file"]::file-selector-button {
+    margin-right: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--line-strong);
+    background: var(--surface-2);
+    color: var(--fg-soft);
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  button:not(:disabled):active {
+    transform: scale(0.97);
+  }
+
+  a,
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  code {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+
+  /* Scrollbar discreta e colorida */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--c2) 60%, transparent) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--c2), var(--c1));
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+}
+
+/* ------------------------------------------- fundo: aurora + grade + orbs --- */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -3;
+  pointer-events: none;
+  background: var(--aurora);
+  animation: aurora-drift 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 52px 52px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 65% at 50% 25%, #000 25%, transparent 75%);
+  mask-image: radial-gradient(ellipse 80% 65% at 50% 25%, #000 25%, transparent 75%);
+  animation: grid-scroll 46s linear infinite;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+  opacity: var(--orb-opacity);
+  will-change: transform;
+}
+.orb-a {
+  width: 26rem;
+  height: 26rem;
+  left: -7rem;
+  top: 14%;
+  background: var(--c2);
+  animation: float-a 24s ease-in-out infinite alternate;
+}
+.orb-b {
+  width: 22rem;
+  height: 22rem;
+  right: -6rem;
+  top: 46%;
+  background: var(--c1);
+  animation: float-b 28s ease-in-out infinite alternate;
+}
+.orb-c {
+  width: 20rem;
+  height: 20rem;
+  left: 38%;
+  bottom: -9rem;
+  background: var(--c3);
+  animation: float-a 32s ease-in-out infinite alternate-reverse;
+}
+
+/* ---------------------------------------------------------- utilitários --- */
+
+@utility glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: var(--shadow-card);
+}
+
+/* Cartão clicável: sobe e ganha um brilho ciano/violeta. */
+@utility glass-hover {
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.28s,
+    border-color 0.28s;
+  &:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in oklab, var(--c1) 55%, transparent);
+    box-shadow:
+      0 22px 50px -22px color-mix(in oklab, var(--c1) 60%, transparent),
+      0 0 0 1px color-mix(in oklab, var(--c2) 35%, transparent),
+      var(--shadow-card);
+  }
+}
+
+@utility btn-primary {
+  position: relative;
+  overflow: hidden;
+  color: var(--btn-text);
+  background-image: var(--grad-primary);
+  background-size: 220% 100%;
+  background-position: 0% 0%;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  box-shadow:
+    0 10px 28px -10px rgb(178 92 245 / 0.75),
+    inset 0 1px 0 rgb(255 255 255 / 0.4);
+  transition:
+    background-position 0.6s ease,
+    transform 0.2s,
+    box-shadow 0.25s,
+    opacity 0.2s;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 32%,
+      rgb(255 255 255 / 0.5) 50%,
+      transparent 68%
+    );
+    transform: translateX(-130%);
+    transition: transform 0.8s ease;
+    pointer-events: none;
+  }
+  &:hover:not(:disabled) {
+    background-position: 100% 0%;
+    transform: translateY(-2px);
+    box-shadow:
+      0 16px 36px -10px rgb(255 95 162 / 0.65),
+      inset 0 1px 0 rgb(255 255 255 / 0.5);
+  }
+  &:hover:not(:disabled)::after {
+    transform: translateX(130%);
+  }
+}
+
+/* Botão secundário: vidro com contorno; ao passar o mouse acende em ciano. */
+@utility btn-ghost {
+  color: var(--fg-soft);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  transition:
+    transform 0.2s,
+    box-shadow 0.25s,
+    border-color 0.25s,
+    background-color 0.25s,
+    color 0.2s;
+  &:hover:not(:disabled) {
+    color: var(--fg);
+    border-color: var(--c1);
+    background: color-mix(in oklab, var(--c1) 12%, var(--surface));
+    box-shadow: 0 10px 26px -12px var(--c1);
+    transform: translateY(-1px);
+  }
+}
+
+/* Moldura com gradiente animado: use num wrapper com p-px em volta do
+   conteúdo (o conteúdo desenha o fundo interno). */
+@utility gradient-ring {
+  background-image: var(--grad-primary);
+  background-size: 300% 100%;
+  animation: gradient-x 7s ease-in-out infinite alternate;
+}
+
+@utility text-gradient {
+  background-image: var(--grad-text);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: gradient-x 9s ease-in-out infinite alternate;
+}
+
+@utility page-title {
+  background-image: var(--grad-title);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: gradient-x 9s ease-in-out infinite alternate;
+  &::after {
+    content: "";
+    display: block;
+    height: 3px;
+    width: 3.5rem;
+    margin-top: 0.55rem;
+    border-radius: 999px;
+    background: var(--grad-primary);
+    box-shadow: 0 0 18px rgb(236 72 153 / 0.6);
+    transform-origin: left;
+    animation: grow-line 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+}
+
+/* Entrada de página e listas em cascata */
+@utility page-enter {
+  animation: fade-up 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@utility stagger {
+  & > * {
+    animation: fade-up 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  & > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  & > *:nth-child(2) {
+    animation-delay: 60ms;
+  }
+  & > *:nth-child(3) {
+    animation-delay: 120ms;
+  }
+  & > *:nth-child(4) {
+    animation-delay: 180ms;
+  }
+  & > *:nth-child(5) {
+    animation-delay: 240ms;
+  }
+  & > *:nth-child(6) {
+    animation-delay: 300ms;
+  }
+  & > *:nth-child(7) {
+    animation-delay: 360ms;
+  }
+  & > *:nth-child(8) {
+    animation-delay: 420ms;
+  }
+  & > *:nth-child(9) {
+    animation-delay: 480ms;
+  }
+  & > *:nth-child(n + 10) {
+    animation-delay: 540ms;
+  }
+}
+
+@utility animate-glow {
+  animation: glow 2.4s ease-in-out infinite;
+}
+
+@utility animate-float {
+  animation: float-y 6s ease-in-out infinite;
+}
+
+@utility animate-float-slow {
+  animation: float-y 9s ease-in-out infinite reverse;
+}
+
+@utility animate-spin-slow {
+  animation: spin 14s linear infinite;
+}
+
+/* ---------------------------------------------------------- keyframes ---- */
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate3d(-3%, 2%, 0) rotate(3deg) scale(1.07);
+  }
+  100% {
+    transform: translate3d(3%, -2%, 0) rotate(-2deg) scale(1.03);
+  }
+}
+
+@keyframes grid-scroll {
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      0 52px,
+      52px 0;
+  }
+}
+
+@keyframes float-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(9rem, -6rem, 0) scale(1.18);
+  }
+}
+
+@keyframes float-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  to {
+    transform: translate3d(-8rem, 7rem, 0) scale(0.9);
+  }
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes grow-line {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes gradient-x {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(251 113 133 / 0);
+  }
+  50% {
+    box-shadow: 0 0 20px 2px rgb(251 113 133 / 0.5);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Quem prefere menos movimento não recebe animação: os elementos aparecem
+   direto no estado final. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

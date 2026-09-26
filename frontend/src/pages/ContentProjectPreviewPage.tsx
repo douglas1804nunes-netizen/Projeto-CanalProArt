@@ -167,103 +167,101 @@ export function ContentProjectPreviewPage() {
 
   return (
     <div className="max-w-3xl">
-      <Link to={`/content/${id}`} className="text-sm text-slate-500 hover:text-slate-700">
+      <Link to={`/content/${id}`} className="text-sm text-muted hover:text-fg">
         ← Voltar ao projeto
       </Link>
 
-      {state.status === "loading" && <p className="mt-6 text-sm text-slate-500">Carregando…</p>}
+      {state.status === "loading" && <p className="mt-6 text-sm text-muted">Carregando…</p>}
       {state.status === "not-found" && (
-        <p className="mt-6 text-sm text-slate-500">Projeto não encontrado.</p>
+        <p className="mt-6 text-sm text-muted">Projeto não encontrado.</p>
       )}
-      {state.status === "error" && <p className="mt-6 text-sm text-red-600">{state.message}</p>}
+      {state.status === "error" && <p className="mt-6 text-sm text-danger">{state.message}</p>}
 
       {state.status === "success" && (
         <>
           <h1 className="mt-4 text-2xl font-semibold tracking-tight">Prévia de publicação</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted">
             Isso é o que será enviado ao YouTube. O vídeo é publicado como <strong>privado</strong>{" "}
             — você pode alterar a visibilidade depois no YouTube Studio.
           </p>
 
-          <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-medium text-slate-700">Checklist</h2>
+          <div className="mt-6 glass rounded-2xl p-5">
+            <h2 className="text-sm font-medium text-fg-soft">Checklist</h2>
             <ul className="mt-3 flex flex-col gap-1.5">
               {buildChecklist(state.project).map((item) => (
                 <li key={item.label} className="flex items-center gap-2 text-sm">
-                  <span className={item.done ? "text-emerald-600" : "text-slate-300"}>
+                  <span className={item.done ? "text-ok" : "text-faint"}>
                     {item.done ? "✓" : "○"}
                   </span>
-                  <span className={item.done ? "text-slate-700" : "text-slate-400"}>
-                    {item.label}
-                  </span>
+                  <span className={item.done ? "text-fg-soft" : "text-faint"}>{item.label}</span>
                 </li>
               ))}
             </ul>
           </div>
 
           {state.project.mediaUpload ? (
-            <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mt-6 glass rounded-2xl p-5">
               <video
                 controls
                 src={`/api/content-projects/${id}/media/file`}
-                className="w-full rounded-md bg-black"
+                className="w-full rounded-lg bg-black"
               />
               {state.project.mediaUpload.rightsStatus && (
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-muted">
                   Direitos: {RIGHTS_STATUS_LABELS[state.project.mediaUpload.rightsStatus]}
                   {state.project.mediaUpload.containsSyntheticMedia && " · contém mídia sintética"}
                 </p>
               )}
             </div>
           ) : (
-            <div className="mt-6 rounded-lg border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
+            <div className="mt-6 glass rounded-2xl border-dashed p-5 text-sm text-muted">
               Nenhum vídeo enviado ainda.
             </div>
           )}
 
-          <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-medium text-slate-700">Título</h2>
+          <div className="mt-6 glass rounded-2xl p-5">
+            <h2 className="text-sm font-medium text-fg-soft">Título</h2>
             {(() => {
               const selectedTitle = state.project.generatedTitles.find((t) => t.selected);
               return selectedTitle ? (
-                <p className="mt-2 text-lg font-medium text-slate-900">{selectedTitle.title}</p>
+                <p className="mt-2 text-lg font-medium text-fg">{selectedTitle.title}</p>
               ) : (
-                <p className="mt-2 text-sm text-slate-500">Nenhum título selecionado.</p>
+                <p className="mt-2 text-sm text-muted">Nenhum título selecionado.</p>
               );
             })()}
           </div>
 
-          <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-medium text-slate-700">Descrição</h2>
+          <div className="mt-6 glass rounded-2xl p-5">
+            <h2 className="text-sm font-medium text-fg-soft">Descrição</h2>
             {(() => {
               const selectedDescription = state.project.generatedDescriptions.find(
                 (d) => d.selected,
               );
               return selectedDescription ? (
-                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                <p className="mt-2 whitespace-pre-wrap text-sm text-fg-soft">
                   {selectedDescription.description}
                 </p>
               ) : (
-                <p className="mt-2 text-sm text-slate-500">Nenhuma descrição selecionada.</p>
+                <p className="mt-2 text-sm text-muted">Nenhuma descrição selecionada.</p>
               );
             })()}
           </div>
 
-          <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-medium text-slate-700">Publicar</h2>
+          <div className="mt-6 glass rounded-2xl p-5">
+            <h2 className="text-sm font-medium text-fg-soft">Publicar</h2>
 
             {state.project.status === "PUBLISHED" && publishState.status !== "success" && (
-              <p className="mt-2 text-sm text-emerald-700">Este projeto já foi publicado.</p>
+              <p className="mt-2 text-sm text-ok">Este projeto já foi publicado.</p>
             )}
 
             {state.project.status !== "PUBLISHED" && publishState.status !== "success" && (
               <>
                 {state.project.status !== "READY" ? (
-                  <p className="mt-2 text-sm text-slate-500">
+                  <p className="mt-2 text-sm text-muted">
                     Marque o projeto como pronto (na página do projeto) antes de publicar.
                   </p>
                 ) : accounts.length === 0 ? (
-                  <p className="mt-2 text-sm text-slate-500">
+                  <p className="mt-2 text-sm text-muted">
                     <Link to="/youtube" className="underline">
                       Conecte um canal do YouTube
                     </Link>{" "}
@@ -274,7 +272,7 @@ export function ContentProjectPreviewPage() {
                     <select
                       value={selectedAccountId}
                       onChange={(event) => setSelectedAccountId(event.target.value)}
-                      className="rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                      className="rounded-lg border border-line-strong px-2 py-1.5 text-xs"
                     >
                       {accounts.map((account) => (
                         <option key={account.id} value={account.id}>
@@ -286,7 +284,7 @@ export function ContentProjectPreviewPage() {
                       type="button"
                       onClick={() => void handlePublish()}
                       disabled={publishState.status === "publishing"}
-                      className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+                      className="rounded-lg btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
                     >
                       {publishState.status === "publishing" ? "Publicando…" : "Publicar no YouTube"}
                     </button>
@@ -296,11 +294,11 @@ export function ContentProjectPreviewPage() {
             )}
 
             {publishState.status === "error" && (
-              <p className="mt-2 text-sm text-red-600">{publishState.message}</p>
+              <p className="mt-2 text-sm text-danger">{publishState.message}</p>
             )}
 
             {publishState.status === "success" && (
-              <div className="mt-2 text-sm text-emerald-700">
+              <div className="mt-2 text-sm text-ok">
                 <p>Publicado com sucesso!</p>
                 {publishState.youtubeVideoId && (
                   <a

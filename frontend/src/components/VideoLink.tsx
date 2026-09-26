@@ -52,14 +52,14 @@ export function VideoLink({ url }: VideoLinkProps) {
         target="_blank"
         rel="noopener noreferrer"
         title={url}
-        className="min-w-0 flex-1 truncate rounded bg-slate-100 px-2 py-1 font-mono text-[11px] text-slate-600 hover:text-slate-900"
+        className="min-w-0 flex-1 truncate rounded bg-surface-2 px-2 py-1 font-mono text-[11px] text-fg-soft hover:text-fg"
       >
         {url.replace(/^https?:\/\//, "")}
       </a>
       <button
         type="button"
         onClick={() => void handleCopy()}
-        className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-100"
+        className="shrink-0 rounded-md px-2 py-1 text-[11px] font-medium btn-ghost"
       >
         {copyState === "copied"
           ? "Copiado!"

@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireAuth } from "./auth/RequireAuth";
+import { BackgroundFX } from "./components/BackgroundFX";
 import { AppLayout } from "./layout/AppLayout";
 import { ContentProjectDetailPage } from "./pages/ContentProjectDetailPage";
 import { ContentProjectPreviewPage } from "./pages/ContentProjectPreviewPage";
@@ -19,6 +20,7 @@ import { YoutubePage } from "./pages/YoutubePage";
 export default function App() {
   return (
     <AuthProvider>
+      <BackgroundFX />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

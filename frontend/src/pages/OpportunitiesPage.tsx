@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
-type TrendClassification = "RISING" | "HOT" | "STABLE" | "DECLINING";
+import { ClassificationBadge, type TrendClassification } from "../components/ClassificationBadge";
 
 type Opportunity = {
   id: string;
@@ -18,20 +17,6 @@ type ListState =
   | { status: "loading" }
   | { status: "success"; opportunities: Opportunity[] }
   | { status: "error"; message: string };
-
-const CLASSIFICATION_LABELS: Record<TrendClassification, string> = {
-  HOT: "🔥 Em alta",
-  RISING: "📈 Subindo",
-  STABLE: "➡️ Estável",
-  DECLINING: "📉 Caindo",
-};
-
-const CLASSIFICATION_STYLES: Record<TrendClassification, string> = {
-  HOT: "bg-red-100 text-red-700",
-  RISING: "bg-emerald-100 text-emerald-700",
-  STABLE: "bg-slate-100 text-slate-600",
-  DECLINING: "bg-amber-100 text-amber-700",
-};
 
 export function OpportunitiesPage() {
   const [state, setState] = useState<ListState>({ status: "loading" });
@@ -105,51 +90,50 @@ export function OpportunitiesPage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Oportunidades</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="page-title text-2xl font-semibold tracking-tight">Oportunidades</h1>
+      <p className="mt-1 text-sm text-muted">
         Tendências em alta (HOT) ou subindo (RISING) viram oportunidades automaticamente — vale a
         pena produzir conteúdo sobre elas.
       </p>
 
       <div className="mt-6">
-        {state.status === "loading" && <p className="text-sm text-slate-500">Carregando…</p>}
+        {state.status === "loading" && <p className="text-sm text-muted">Carregando…</p>}
 
-        {state.status === "error" && <p className="text-sm text-red-600">{state.message}</p>}
+        {state.status === "error" && <p className="text-sm text-danger">{state.message}</p>}
 
-        {createError && <p className="mb-3 text-sm text-red-600">{createError}</p>}
+        {createError && <p className="mb-3 text-sm text-danger">{createError}</p>}
 
         {state.status === "success" && state.opportunities.length === 0 && (
-          <p className="text-sm text-slate-500">Nenhuma oportunidade ativa no momento.</p>
+          <p className="text-sm text-muted">Nenhuma oportunidade ativa no momento.</p>
         )}
 
         {state.status === "success" && state.opportunities.length > 0 && (
-          <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white shadow-sm">
+          <ul className="divide-y divide-line glass rounded-2xl">
             {state.opportunities.map((opportunity) => (
               <li key={opportunity.id} className="flex items-center justify-between gap-3 p-4">
                 <div>
                   <Link
                     to={`/trends/${opportunity.trendId}`}
-                    className="text-sm font-medium text-slate-900 hover:underline"
+                    className="text-sm font-medium text-fg hover:underline"
                   >
                     {opportunity.topic}
                   </Link>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted">
                     {opportunity.regionCode} ·{" "}
                     {new Date(opportunity.createdAt).toLocaleString("pt-BR")}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${CLASSIFICATION_STYLES[opportunity.classification]}`}
-                  >
-                    {CLASSIFICATION_LABELS[opportunity.classification]} · {opportunity.score}
-                  </span>
+                  <ClassificationBadge
+                    classification={opportunity.classification}
+                    score={opportunity.score}
+                  />
                   {opportunity.status !== "DISMISSED" && (
                     <button
                       type="button"
                       onClick={() => void handleCreateContent(opportunity)}
                       disabled={creatingId === opportunity.id}
-                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 btn-ghost"
                     >
                       {creatingId === opportunity.id ? "Criando…" : "Criar conteúdo"}
                     </button>
@@ -159,12 +143,12 @@ export function OpportunitiesPage() {
                       type="button"
                       onClick={() => void handleDismiss(opportunity.id)}
                       disabled={dismissingId === opportunity.id}
-                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 btn-ghost"
                     >
                       {dismissingId === opportunity.id ? "Dispensando…" : "Dispensar"}
                     </button>
                   ) : (
-                    <span className="text-xs text-slate-400">{opportunity.status}</span>
+                    <span className="text-xs text-faint">{opportunity.status}</span>
                   )}
                 </div>
               </li>

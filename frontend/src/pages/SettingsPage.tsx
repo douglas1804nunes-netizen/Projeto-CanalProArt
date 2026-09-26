@@ -25,15 +25,15 @@ type ChecksState =
   | { status: "success"; checks: ChecksResponse }
   | { status: "error"; message: string };
 
-const CARD = "mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm";
+const CARD = "mt-6 glass rounded-2xl p-5 ";
 
 function CheckRow({ label, result }: { label: string; result: CheckResult }) {
   return (
     <li className="flex items-start gap-2 text-sm">
       <span aria-hidden="true">{result.ok ? "✅" : "❌"}</span>
       <span>
-        <span className="font-medium text-slate-800">{label}</span>
-        <span className="text-slate-500"> — {result.message}</span>
+        <span className="font-medium text-fg">{label}</span>
+        <span className="text-muted"> — {result.message}</span>
       </span>
     </li>
   );
@@ -150,22 +150,22 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Configurações</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="page-title text-2xl font-semibold tracking-tight">Configurações</h1>
+      <p className="mt-1 text-sm text-muted">
         Confira se as integrações estão funcionando e ajuste suas preferências.
       </p>
 
       {authState.status === "authenticated" && (
         <section className={CARD}>
-          <h2 className="text-sm font-semibold text-slate-800">Conta</h2>
-          <p className="mt-2 text-sm text-slate-700">{authState.user.name}</p>
-          <p className="text-sm text-slate-500">{authState.user.email}</p>
+          <h2 className="text-sm font-semibold text-fg">Conta</h2>
+          <p className="mt-2 text-sm text-fg-soft">{authState.user.name}</p>
+          <p className="text-sm text-muted">{authState.user.email}</p>
         </section>
       )}
 
       <section className={CARD}>
-        <h2 className="text-sm font-semibold text-slate-800">Integrações</h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <h2 className="text-sm font-semibold text-fg">Integrações</h2>
+        <p className="mt-1 text-xs text-muted">
           Faz uma chamada real (barata) a cada serviço para confirmar que a chave colada no servidor
           funciona. A busca do YouTube gasta 1 unidade da cota diária.
         </p>
@@ -174,13 +174,13 @@ export function SettingsPage() {
           type="button"
           onClick={() => void handleRunChecks()}
           disabled={checksState.status === "loading"}
-          className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+          className="mt-4 rounded-lg btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {checksState.status === "loading" ? "Testando…" : "Testar conexões"}
         </button>
 
         {checksState.status === "error" && (
-          <p className="mt-3 text-sm text-red-600">{checksState.message}</p>
+          <p className="mt-3 text-sm text-danger">{checksState.message}</p>
         )}
         {checksState.status === "success" && (
           <ul className="mt-4 space-y-2">
@@ -191,51 +191,49 @@ export function SettingsPage() {
       </section>
 
       <section className={CARD}>
-        <h2 className="text-sm font-semibold text-slate-800">Canal do YouTube</h2>
+        <h2 className="text-sm font-semibold text-fg">Canal do YouTube</h2>
 
-        {infoState.status === "loading" && (
-          <p className="mt-2 text-sm text-slate-500">Carregando…</p>
-        )}
+        {infoState.status === "loading" && <p className="mt-2 text-sm text-muted">Carregando…</p>}
         {infoState.status === "error" && (
-          <p className="mt-2 text-sm text-red-600">{infoState.message}</p>
+          <p className="mt-2 text-sm text-danger">{infoState.message}</p>
         )}
         {infoState.status === "success" && (
           <>
             {infoState.info.warnings.length > 0 && (
-              <ul className="mt-3 space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <ul className="mt-3 space-y-1 rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs text-warn">
                 {infoState.info.warnings.map((warning) => (
                   <li key={warning}>⚠️ {warning}</li>
                 ))}
               </ul>
             )}
 
-            <p className="mt-3 text-sm text-slate-700">
+            <p className="mt-3 text-sm text-fg-soft">
               {infoState.info.youtubeChannels === 0
                 ? "Nenhum canal conectado ainda — sem isso não dá para publicar vídeos."
                 : `${infoState.info.youtubeChannels} ${infoState.info.youtubeChannels === 1 ? "canal conectado" : "canais conectados"}.`}{" "}
-              <Link to="/youtube" className="text-slate-900 underline">
+              <Link to="/youtube" className="text-fg underline">
                 Gerenciar canais
               </Link>
             </p>
 
-            <p className="mt-4 text-xs font-medium text-slate-700">
+            <p className="mt-4 text-xs font-medium text-fg-soft">
               URI de redirecionamento (cadastre exatamente esta no Google Cloud Console → OAuth
               Client → Authorized redirect URIs)
             </p>
             <div className="mt-1 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded bg-slate-100 px-2 py-1.5 text-xs text-slate-800">
+              <code className="min-w-0 flex-1 truncate rounded bg-surface-2 px-2 py-1.5 text-xs text-fg">
                 {infoState.info.youtubeRedirectUri}
               </code>
               <button
                 type="button"
                 onClick={() => void handleCopyRedirectUri(infoState.info.youtubeRedirectUri)}
-                className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100"
+                className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium btn-ghost"
               >
                 {copied ? "Copiado!" : "Copiar"}
               </button>
             </div>
 
-            <p className="mt-4 text-xs text-slate-400">
+            <p className="mt-4 text-xs text-faint">
               Ambiente: {infoState.info.environment} · IA: {infoState.info.aiProvider}
             </p>
           </>
@@ -243,10 +241,10 @@ export function SettingsPage() {
       </section>
 
       <section className={CARD}>
-        <h2 className="text-sm font-semibold text-slate-800">Preferências</h2>
+        <h2 className="text-sm font-semibold text-fg">Preferências</h2>
         <form onSubmit={handleSaveRegion} className="mt-3 flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-slate-700">Região padrão das tendências</span>
+            <span className="font-medium text-fg-soft">Região padrão das tendências</span>
             <input
               type="text"
               value={region}
@@ -255,33 +253,30 @@ export function SettingsPage() {
                 setRegionMessage(null);
               }}
               maxLength={2}
-              className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm uppercase outline-none focus:border-slate-500"
+              className="w-20 rounded-lg border border-line-strong px-3 py-2 text-sm uppercase outline-none focus:border-neon-cyan"
             />
           </label>
-          <button
-            type="submit"
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
-          >
+          <button type="submit" className="rounded-lg px-4 py-2 text-sm font-medium btn-ghost">
             Salvar
           </button>
         </form>
-        {regionMessage && <p className="mt-2 text-xs text-slate-500">{regionMessage}</p>}
+        {regionMessage && <p className="mt-2 text-xs text-muted">{regionMessage}</p>}
       </section>
 
       <section className={CARD}>
-        <h2 className="text-sm font-semibold text-slate-800">Dados</h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <h2 className="text-sm font-semibold text-fg">Dados</h2>
+        <p className="mt-1 text-xs text-muted">
           Exclui o histórico de pesquisas de tendências. As tendências, oportunidades e conteúdos já
           gerados não são afetados.
         </p>
         <button
           type="button"
           onClick={() => void handleClearHistory()}
-          className="mt-3 rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+          className="mt-3 rounded-lg border border-danger/40 px-4 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
         >
           Limpar histórico de pesquisas
         </button>
-        {historyMessage && <p className="mt-2 text-xs text-slate-500">{historyMessage}</p>}
+        {historyMessage && <p className="mt-2 text-xs text-muted">{historyMessage}</p>}
       </section>
     </div>
   );

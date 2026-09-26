@@ -4,7 +4,7 @@
 // - Navegação (HTML): rede primeiro; offline, cai no index.html em cache.
 // - /assets/* (arquivos com hash do Vite): cache primeiro — nunca mudam.
 // Mude CACHE_VERSION para descartar os caches antigos.
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const CACHE_NAME = `canalproart-${CACHE_VERSION}`;
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
