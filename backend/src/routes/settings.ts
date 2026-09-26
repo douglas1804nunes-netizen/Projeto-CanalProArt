@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { AnthropicApiError, pingAnthropic } from "@canalproart/services";
 import { env } from "../env.js";
 import { prisma } from "../prisma.js";
 
@@ -47,20 +48,39 @@ async function checkYoutubeApiKey(): Promise<CheckResult> {
   return { ok: false, message: `O Google respondeu HTTP ${response.status}.` };
 }
 
-// GET /v1/models não consome tokens.
+// Chamada mínima de verdade (1 token): listar modelos responde 200 mesmo com a
+// conta sem crédito e enganava — a geração de roteiro/título/descrição
+// falhava depois. Custa uma fração de centavo.
 async function checkAnthropicApiKey(): Promise<CheckResult> {
-  const response = await fetch("https://api.anthropic.com/v1/models?limit=1", {
-    headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
-  });
-  if (response.ok) return { ok: true, message: "Chave válida — Anthropic API respondeu." };
-  if (response.status === 401 || response.status === 403) {
-    return {
-      ok: false,
-      message: "Chave recusada pela Anthropic — confira o valor de ANTHROPIC_API_KEY.",
-    };
+  try {
+    await pingAnthropic(env.ANTHROPIC_API_KEY, AbortSignal.timeout(CHECK_TIMEOUT_MS));
+    return { ok: true, message: "Chave válida e com saldo — a IA respondeu." };
+  } catch (error) {
+    if (error instanceof AnthropicApiError) {
+      switch (error.kind) {
+        case "no_credits":
+          return {
+            ok: false,
+            message:
+              "A chave é válida, mas a conta da Anthropic está sem créditos — adicione em " +
+              "console.anthropic.com (Plans & Billing) para a IA voltar a gerar textos.",
+          };
+        case "invalid_key":
+          return {
+            ok: false,
+            message: "Chave recusada pela Anthropic — confira o valor de ANTHROPIC_API_KEY.",
+          };
+        case "rate_limited":
+          return {
+            ok: false,
+            message: "A chave é válida, mas o limite de uso da IA foi atingido.",
+          };
+        default:
+          return { ok: false, message: `A Anthropic respondeu HTTP ${error.status}.` };
+      }
+    }
+    throw error;
   }
-  return { ok: false, message: `A Anthropic respondeu HTTP ${response.status}.` };
 }
 
 async function safely(check: () => Promise<CheckResult>): Promise<CheckResult> {

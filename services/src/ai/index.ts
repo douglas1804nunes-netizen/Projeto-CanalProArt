@@ -1,6 +1,9 @@
 import { createAnthropicProvider } from "./anthropicProvider.js";
 import type { AIProvider } from "./provider.js";
 
+export { AnthropicApiError, ANTHROPIC_MODEL, pingAnthropic } from "./client.js";
+export type { AnthropicFailureKind } from "./client.js";
+
 export type AIProviderFactoryConfig = {
   provider: string;
   apiKey: string;

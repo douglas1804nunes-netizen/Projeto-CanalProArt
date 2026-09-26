@@ -167,7 +167,8 @@ export function SettingsPage() {
         <h2 className="text-sm font-semibold text-fg">Integrações</h2>
         <p className="mt-1 text-xs text-muted">
           Faz uma chamada real (barata) a cada serviço para confirmar que a chave colada no servidor
-          funciona. A busca do YouTube gasta 1 unidade da cota diária.
+          funciona — inclusive se a conta da IA tem créditos. Gasta 1 unidade da cota diária do
+          YouTube e 1 token da IA (uma fração de centavo).
         </p>
 
         <button

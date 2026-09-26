@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createAIProvider } from "@canalproart/services";
+import { aiFailure } from "../ai/errors.js";
 import { env } from "../env.js";
 
 // Cada geração custa tokens de verdade (dinheiro) — limite mais apertado
@@ -46,7 +47,8 @@ export async function aiRoutes(app: FastifyInstance) {
         return reply.send({ ideas });
       } catch (error) {
         app.log.error({ err: error }, "Falha ao gerar ideias com IA");
-        return reply.status(502).send({ error: "Falha ao gerar ideias com IA" });
+        const failure = aiFailure(error, "Falha ao gerar ideias com IA");
+        return reply.status(failure.status).send({ error: failure.message });
       }
     },
   );
@@ -66,7 +68,8 @@ export async function aiRoutes(app: FastifyInstance) {
         return reply.send({ script });
       } catch (error) {
         app.log.error({ err: error }, "Falha ao gerar roteiro com IA");
-        return reply.status(502).send({ error: "Falha ao gerar roteiro com IA" });
+        const failure = aiFailure(error, "Falha ao gerar roteiro com IA");
+        return reply.status(failure.status).send({ error: failure.message });
       }
     },
   );
@@ -86,7 +89,8 @@ export async function aiRoutes(app: FastifyInstance) {
         return reply.send({ titles });
       } catch (error) {
         app.log.error({ err: error }, "Falha ao gerar títulos com IA");
-        return reply.status(502).send({ error: "Falha ao gerar títulos com IA" });
+        const failure = aiFailure(error, "Falha ao gerar títulos com IA");
+        return reply.status(failure.status).send({ error: failure.message });
       }
     },
   );
@@ -106,7 +110,8 @@ export async function aiRoutes(app: FastifyInstance) {
         return reply.send({ description });
       } catch (error) {
         app.log.error({ err: error }, "Falha ao gerar descrição com IA");
-        return reply.status(502).send({ error: "Falha ao gerar descrição com IA" });
+        const failure = aiFailure(error, "Falha ao gerar descrição com IA");
+        return reply.status(failure.status).send({ error: failure.message });
       }
     },
   );

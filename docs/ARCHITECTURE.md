@@ -352,6 +352,24 @@ dependências de todos os pacotes.
   placeholder do `.env`: a rota responde 502 de forma limpa (sem derrubar o
   processo) quando a Anthropic API rejeita a chave.
 
+### Falhas da IA com motivo claro (pós-Fase 17)
+
+- `AnthropicApiError` (`services/src/ai/client.ts`) guarda o status e classifica a
+  falha: `no_credits` (a API responde 400 com "credit balance is too low" — só a
+  mensagem distingue de um pedido malformado), `invalid_key` (401/403),
+  `rate_limited` (429) ou `other`. `backend/src/ai/errors.ts` (`aiFailure`)
+  traduz isso pra resposta das rotas de IA e de geração de conteúdo: **402**
+  "conta da Anthropic sem créditos — adicione em console.anthropic.com", **502**
+  "chave recusada — confira ANTHROPIC_API_KEY", **429** "limite de uso" e, pra o
+  resto, o 502 genérico de antes (sem vazar detalhe da API).
+- Motivo: sem isso, "sem créditos" e "chave errada" chegavam à tela como o mesmo
+  "Falha ao gerar…", e o publicar ficava travado (título/descrição vêm da IA)
+  sem ninguém saber o que consertar. Achado num teste ao vivo do fluxo de
+  republicação, com a conta da Anthropic sem saldo.
+- Testado: classificação de cada falha (incl. resposta que não é JSON), as
+  rotas de IA e de geração de roteiro com `fetch` substituído (402 sem gravar
+  nada), e o teste de conexões; conferido contra a API real.
+
 ### Content Projects (Fase 12)
 
 - `backend/src/routes/contentProjects.ts` fecha o ciclo desenhado desde a
@@ -610,9 +628,12 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
   limpeza do histórico.
 - **Diagnóstico das integrações**: `POST /api/settings/check` faz uma
   chamada barata de verdade a cada serviço — `videos.list` (1 unidade de
-  cota) para a `YOUTUBE_API_KEY` e `GET /v1/models` (sem custo de tokens)
-  para a `ANTHROPIC_API_KEY` — e devolve, por integração, se a chave é
-  válida, foi recusada, ou se a cota acabou. Rate limit de 5/min. As
+  cota) para a `YOUTUBE_API_KEY` e uma geração mínima de 1 token
+  (`POST /v1/messages`, uma fração de centavo) para a `ANTHROPIC_API_KEY` — e
+  devolve, por integração, se a chave é válida, foi recusada, se a cota do
+  YouTube acabou ou se a conta da Anthropic está **sem créditos**. (Antes a IA
+  era testada listando modelos, que responde 200 mesmo sem saldo e escondia o
+  problema.) Rate limit de 5/min. As
   variáveis já são obrigatórias no boot (`env.ts`), mas "não vazia" não é
   "válida"; sem esse teste o erro só aparecia na primeira busca.
   `GET /api/settings` nunca devolve segredo (só a redirect URI, o ambiente e

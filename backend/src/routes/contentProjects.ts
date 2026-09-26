@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createAIProvider } from "@canalproart/services";
+import { aiFailure } from "../ai/errors.js";
 import { env } from "../env.js";
 import { removeProjectUploads } from "../media/storage.js";
 import { prisma } from "../prisma.js";
@@ -257,7 +258,8 @@ export async function contentProjectRoutes(app: FastifyInstance) {
         return reply.status(201).send(script);
       } catch (error) {
         app.log.error({ err: error }, "Falha ao gerar roteiro com IA");
-        return reply.status(502).send({ error: "Falha ao gerar roteiro com IA" });
+        const failure = aiFailure(error, "Falha ao gerar roteiro com IA");
+        return reply.status(failure.status).send({ error: failure.message });
       }
     },
   );
@@ -297,7 +299,8 @@ export async function contentProjectRoutes(app: FastifyInstance) {
         return reply.status(201).send(created);
       } catch (error) {
         app.log.error({ err: error }, "Falha ao gerar títulos com IA");
-        return reply.status(502).send({ error: "Falha ao gerar títulos com IA" });
+        const failure = aiFailure(error, "Falha ao gerar títulos com IA");
+        return reply.status(failure.status).send({ error: failure.message });
       }
     },
   );
@@ -337,7 +340,8 @@ export async function contentProjectRoutes(app: FastifyInstance) {
         return reply.status(201).send(created);
       } catch (error) {
         app.log.error({ err: error }, "Falha ao gerar descrição com IA");
-        return reply.status(502).send({ error: "Falha ao gerar descrição com IA" });
+        const failure = aiFailure(error, "Falha ao gerar descrição com IA");
+        return reply.status(failure.status).send({ error: failure.message });
       }
     },
   );

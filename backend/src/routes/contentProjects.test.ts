@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { buildApp } from "../app.js";
@@ -298,6 +298,41 @@ describe("Rotas de content projects (Fase 12)", () => {
       payload: {},
     });
     expect(response.statusCode).toBe(404);
+  });
+
+  it("POST .../generate-script com a conta da IA sem créditos devolve 402 e não grava roteiro", async () => {
+    const project = await createProject(mainToken);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              type: "error",
+              error: {
+                type: "invalid_request_error",
+                message: "Your credit balance is too low to access the Anthropic API.",
+              },
+            }),
+            { status: 400 },
+          ),
+      ),
+    );
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: `/api/content-projects/${project.id}/generate-script`,
+        cookies: { token: mainToken },
+        payload: {},
+      });
+
+      expect(response.statusCode).toBe(402);
+      expect((response.json() as { error: string }).error).toContain("sem créditos");
+      expect(await prisma.script.count({ where: { contentProjectId: project.id } })).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("POST .../generate-description devolve 400 se ainda não existe roteiro", async () => {

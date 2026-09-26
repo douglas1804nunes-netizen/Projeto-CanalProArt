@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../app.js";
 import { prisma } from "../prisma.js";
 import { buildConfigWarnings } from "./settings.js";
@@ -50,8 +50,15 @@ describe("buildConfigWarnings", () => {
 // Não chama Google/Anthropic de verdade: as checagens de chave usam o fetch
 // global, que é substituído por respostas fabricadas.
 describe("Rotas de configurações", () => {
-  const app = buildApp();
+  // Instância nova a cada teste: /api/settings/check tem rate limit (5/min) em
+  // memória, e são mais que 5 chamadas no arquivo.
+  let app = buildApp();
   const createdEmails: string[] = [];
+
+  beforeEach(async () => {
+    await app.close();
+    app = buildApp();
+  });
 
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -124,7 +131,8 @@ describe("Rotas de configurações", () => {
 
   it("POST /api/settings/check confirma as duas chaves quando os serviços respondem 200", async () => {
     const token = await registerToken("check-ok");
-    stubFetch(() => ({ status: 200 }));
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
 
     const response = await app.inject({
       method: "POST",
@@ -137,6 +145,14 @@ describe("Rotas de configurações", () => {
       youtubeApiKey: { ok: true },
       anthropicApiKey: { ok: true },
     });
+
+    // A IA é testada com uma geração mínima (POST /v1/messages), não só listando
+    // modelos — listar responde 200 até com a conta sem crédito.
+    const anthropicCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes("anthropic.com"),
+    ) as unknown as [string, RequestInit] | undefined;
+    expect(anthropicCall?.[0]).toContain("/v1/messages");
+    expect(anthropicCall?.[1].method).toBe("POST");
   });
 
   it("POST /api/settings/check aponta qual chave foi recusada", async () => {
@@ -161,6 +177,38 @@ describe("Rotas de configurações", () => {
     expect(body.youtubeApiKey.message).toContain("YOUTUBE_API_KEY");
     expect(body.anthropicApiKey.ok).toBe(false);
     expect(body.anthropicApiKey.message).toContain("ANTHROPIC_API_KEY");
+  });
+
+  it("POST /api/settings/check avisa que a IA está sem créditos mesmo com a chave válida", async () => {
+    const token = await registerToken("check-credits");
+    stubFetch((url) =>
+      url.includes("anthropic.com")
+        ? {
+            status: 400,
+            body: {
+              error: {
+                type: "invalid_request_error",
+                message: "Your credit balance is too low to access the Anthropic API.",
+              },
+            },
+          }
+        : { status: 200 },
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/settings/check",
+      cookies: { token },
+    });
+
+    const body = response.json() as {
+      youtubeApiKey: { ok: boolean };
+      anthropicApiKey: { ok: boolean; message: string };
+    };
+    expect(body.youtubeApiKey.ok).toBe(true);
+    expect(body.anthropicApiKey.ok).toBe(false);
+    expect(body.anthropicApiKey.message).toContain("sem créditos");
+    expect(body.anthropicApiKey.message).toContain("console.anthropic.com");
   });
 
   it("POST /api/settings/check diferencia cota esgotada de chave inválida", async () => {
