@@ -33,7 +33,9 @@ const TOTAL_TIMEOUT_MS = 20 * 60 * 1000;
 
 const YOUTUBE_MESSAGE =
   "Links do YouTube não podem ser importados — o CanalProArt não baixa vídeos do YouTube. " +
-  "Envie o arquivo do vídeo ou use o link direto de um arquivo seu ou autorizado.";
+  "Se o vídeo é seu, baixe o original no YouTube Studio (Conteúdo → ⋮ → Baixar) e envie o " +
+  "arquivo aqui. Se é de outra pessoa, peça o arquivo e a autorização a ela ou use um vídeo " +
+  "de banco livre (Pexels, Pixabay, Archive.org…) pelo link direto do arquivo.";
 
 const BLOCKED_PLATFORM_DOMAINS = [
   "youtube.com",

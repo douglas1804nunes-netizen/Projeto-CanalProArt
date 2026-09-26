@@ -719,7 +719,16 @@ containsSyntheticMedia: false` no `update` do upsert em `media.ts`) —
   substituído (grava, troca o vídeo, reseta direitos, auditoria sem query,
   limpeza do `.part`, falha preserva o vídeo anterior). Validado ao vivo
   contra DNS/TLS reais: `example.com` recusado por ser HTML, e YouTube,
-  `localhost` e `169.254.169.254` barrados — nada gravado em disco.
+  `localhost` e `169.254.169.254` barrados — nada gravado em disco. Também
+  validado com um **arquivo real de domínio público** (vídeo da NASA de ~2 MB no
+  Wikimedia Commons), pela rota completa: HTTP 201 em <1 s, tamanho idêntico ao
+  do servidor de origem, `video/webm` com assinatura de arquivo válida, direitos
+  ainda pendentes, auditoria com a origem e o vídeo servido de volta pelo app.
+- **Mensagem para links do YouTube**: além de explicar que o app não baixa
+  vídeos do YouTube, aponta o caminho útil — vídeo seu: baixar o original no
+  YouTube Studio (Conteúdo → ⋮ → Baixar) e usar "Enviar vídeo"; vídeo de
+  terceiros: pedir o arquivo e a autorização, ou usar um banco livre (Pexels,
+  Pixabay, Archive.org) pelo link direto do arquivo.
 
 ## Frontend
 

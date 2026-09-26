@@ -439,8 +439,9 @@ export function ContentProjectDetailPage() {
               <p className="mt-1 text-xs text-muted">
                 Cole o link direto de um arquivo de vídeo (.mp4, .mov, .webm…) que seja seu ou
                 autorizado — depois é preciso declarar os direitos. Links do YouTube não funcionam:
-                o CanalProArt não baixa vídeos do YouTube. No Dropbox, use <code>?dl=1</code> no fim
-                do link.
+                o CanalProArt não baixa vídeos do YouTube. É um vídeo seu do YouTube? Baixe o
+                original no YouTube Studio (Conteúdo → ⋮ → Baixar) e use &quot;Enviar vídeo&quot;.
+                No Dropbox, use <code>?dl=1</code> no fim do link.
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <input
